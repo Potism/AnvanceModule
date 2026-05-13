@@ -15,7 +15,7 @@ export function AdminPageHeader() {
         </p>
       </div>
       <div className="text-[10px] sm:text-xs uppercase tracking-[0.2em] text-muted-foreground">
-        Anvance Production · Client Briefs
+        Anvance Production · Inviati
       </div>
     </div>
   )

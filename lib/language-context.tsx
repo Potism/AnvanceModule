@@ -423,7 +423,7 @@ export const translations: Translations = {
   // Admin Dashboard
   "admin.title": { it: "Dashboard", en: "Dashboard" },
   "admin.subtitle": { it: "Gestisci e rivedi tutti i brief dei clienti.", en: "Manage and review all client briefs." },
-  "admin.clientBriefs": { it: "Brief Clienti", en: "Client Briefs" },
+  "admin.clientBriefs": { it: "Inviati", en: "Sent" },
   "admin.search": { it: "Cerca clienti...", en: "Search clients..." },
   "admin.allStatus": { it: "Tutti gli stati", en: "All statuses" },
   "admin.noClients": { it: "Nessun brief cliente ancora", en: "No client briefs yet" },
