@@ -4,7 +4,6 @@ import { UseFormReturn } from "react-hook-form"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Checkbox } from "@/components/ui/checkbox"
 import {
   Select,
   SelectContent,
@@ -15,38 +14,34 @@ import {
 import { Switch } from "@/components/ui/switch"
 import {
   ClientFormData,
-  CUSTOMER_FLOW_OPTIONS,
-  PROMO_MATERIALS_OPTIONS,
-  WEBSITE_SECTIONS,
+  WEBSITE_PLATFORMS,
+  WEBSITE_PURPOSES,
+  CURRENT_WEBSITE_STATUS_OPTIONS,
+  LOGO_STYLES,
   SOCIAL_CHANNELS,
-  ONLINE_AD_CHANNELS,
-  OFFLINE_AD_CHANNELS,
-  SERVICES_BRAND,
-  SERVICES_SOCIAL,
-  SERVICES_ADS,
-  SERVICES_WEB,
-  PAIN_POINTS,
-  PROJECT_TYPES,
+  GRAPHIC_DESIGN_ITEMS,
+  ADS_PLATFORMS,
+  ADS_MONTHLY_BUDGETS,
   BUDGET_RANGES,
   TIMELINES,
-  VIDEO_STYLES,
-  WEBSITE_TYPES,
-  FREQUENCY_OPTIONS,
+  PAIN_POINTS,
+  WebsitePlatform,
 } from "@/lib/types"
 import {
   Building2,
   User,
   MapPin,
-  Palette,
   Globe,
-  Video,
-  Store,
-  Camera,
-  Megaphone,
   Sparkles,
-  FileText,
-  UserCog,
   AlertTriangle,
+  UserCog,
+  Palette,
+  Megaphone,
+  Camera,
+  Video,
+  Layout,
+  Share2,
+  Target,
 } from "lucide-react"
 import { useLanguage } from "@/lib/language-context"
 
@@ -156,28 +151,84 @@ function OptionTile({
   )
 }
 
-function YesNoSelect({
+/**
+ * Stylish, side-by-side Sì/No toggle used throughout the services step.
+ * Keeps the form feeling decisive rather than form-heavy.
+ */
+function YesNoToggle({
   value,
   onChange,
-  withInArrivo = false,
 }: {
-  value: string | null | undefined
-  onChange: (v: string) => void
-  withInArrivo?: boolean
+  value: boolean | null | undefined
+  onChange: (v: boolean | null) => void
 }) {
   const { t } = useLanguage()
   return (
-    <Select value={value ?? ""} onValueChange={onChange}>
-      <SelectTrigger className="bg-secondary border-border h-9 sm:h-10 text-sm">
-        <SelectValue placeholder="—" />
-      </SelectTrigger>
-      <SelectContent>
-        <SelectItem value="si">{t("yn.si")}</SelectItem>
-        <SelectItem value="no">{t("yn.no")}</SelectItem>
-        <SelectItem value="non_so">{t("yn.non_so")}</SelectItem>
-        {withInArrivo && <SelectItem value="in_arrivo">{t("yn.in_arrivo")}</SelectItem>}
-      </SelectContent>
-    </Select>
+    <div className="inline-flex rounded-lg border border-border bg-background overflow-hidden">
+      <button
+        type="button"
+        onClick={() => onChange(value === true ? null : true)}
+        className={`px-4 py-1.5 text-xs sm:text-sm font-medium transition-colors ${
+          value === true
+            ? "bg-foreground text-background"
+            : "text-muted-foreground hover:bg-secondary"
+        }`}
+      >
+        {t("svc.yes")}
+      </button>
+      <button
+        type="button"
+        onClick={() => onChange(value === false ? null : false)}
+        className={`px-4 py-1.5 text-xs sm:text-sm font-medium border-l border-border transition-colors ${
+          value === false
+            ? "bg-foreground text-background"
+            : "text-muted-foreground hover:bg-secondary"
+        }`}
+      >
+        {t("svc.no")}
+      </button>
+    </div>
+  )
+}
+
+/** Section card used inside the services step. */
+function ServiceCard({
+  icon: Icon,
+  title,
+  question,
+  value,
+  onToggle,
+  children,
+}: {
+  icon: React.ComponentType<{ className?: string }>
+  title: string
+  question?: string
+  value: boolean | null | undefined
+  onToggle: (v: boolean | null) => void
+  children?: React.ReactNode
+}) {
+  return (
+    <section className="rounded-xl border border-border bg-secondary/40 overflow-hidden">
+      <header className="flex items-center justify-between gap-3 px-4 py-3 border-b border-border bg-background/40">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="p-1.5 rounded-md bg-foreground/[0.06] text-foreground">
+            <Icon className="h-4 w-4" />
+          </div>
+          <div className="min-w-0">
+            <h3 className="text-sm font-semibold text-foreground truncate">{title}</h3>
+            {question && (
+              <p className="text-[11px] sm:text-xs text-muted-foreground truncate">
+                {question}
+              </p>
+            )}
+          </div>
+        </div>
+        <YesNoToggle value={value} onChange={onToggle} />
+      </header>
+      {value && children ? (
+        <div className="px-4 py-4 space-y-4 bg-secondary/20">{children}</div>
+      ) : null}
+    </section>
   )
 }
 
@@ -391,7 +442,7 @@ export function ContactInfoStep({ form }: StepProps) {
         </div>
 
         <div className="space-y-1.5">
-          <FieldLabel>{t("contact.website")}</FieldLabel>
+          <FieldLabel optional>{t("contact.website")}</FieldLabel>
           <Input
             type="url"
             placeholder={t("contact.websitePlaceholder")}
@@ -471,1050 +522,506 @@ export function AddressStep({ form }: StepProps) {
 }
 
 /* ================================================================== */
-/*  STEP 5 — Store profile                                            */
+/*  STEP 5 — Services (the new, direct one)                           */
 /* ================================================================== */
 
-export function StoreProfileStep({ form }: StepProps) {
+export function ServicesStep({ form }: StepProps) {
   const { register, watch, setValue } = form
   const { t } = useLanguage()
-  const flow = watch("customer_flow") || []
+
+  const wantsWebsite = watch("wants_website")
+  const wantsLogo = watch("wants_new_logo")
+  const wantsSocial = watch("wants_social_management")
+  const wantsGraphic = watch("wants_graphic_design")
+  const wantsAds = watch("wants_ads_management")
+
+  const socialChannels = watch("current_social_channels") || []
+  const logoStyles = (watch("logo_style_preference") || "").split(",").map(s => s.trim()).filter(Boolean)
+  const graphicItems = watch("graphic_design_items") || []
+  const adsPlatforms = watch("ads_platforms") || []
 
   return (
-    <div className="space-y-4 sm:space-y-6">
-      <StepHeader
-        icon={Store}
-        title={t("store.title")}
-        subtitle={t("store.subtitle")}
-      />
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-        <div className="space-y-1.5">
-          <FieldLabel optional>{t("store.employees")}</FieldLabel>
-          <Input
-            placeholder={t("store.employeesPlaceholder")}
-            {...register("employees_count")}
-            className="bg-secondary border-border h-9 sm:h-10 text-sm"
-          />
-        </div>
-        <div className="space-y-1.5">
-          <FieldLabel optional>{t("store.location")}</FieldLabel>
-          <Select
-            value={watch("store_location") ?? ""}
-            onValueChange={(v) =>
-              setValue("store_location", v as ClientFormData["store_location"])
-            }
-          >
-            <SelectTrigger className="bg-secondary border-border h-9 sm:h-10 text-sm">
-              <SelectValue placeholder="—" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="centro">{t("storeLocation.centro")}</SelectItem>
-              <SelectItem value="periferia">{t("storeLocation.periferia")}</SelectItem>
-              <SelectItem value="online_only">{t("storeLocation.online_only")}</SelectItem>
-              <SelectItem value="mixed">{t("storeLocation.mixed")}</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-1.5">
-          <FieldLabel optional>{t("store.surface")}</FieldLabel>
-          <Input
-            placeholder={t("store.surfacePlaceholder")}
-            {...register("surface_sqm")}
-            className="bg-secondary border-border h-9 sm:h-10 text-sm"
-          />
-        </div>
-        <div className="space-y-1.5">
-          <FieldLabel optional>{t("store.revenue")}</FieldLabel>
-          <Input
-            placeholder={t("store.revenuePlaceholder")}
-            {...register("annual_revenue")}
-            className="bg-secondary border-border h-9 sm:h-10 text-sm"
-          />
-        </div>
-      </div>
-
-      <div className="space-y-2">
-        <FieldLabel>{t("store.flow")}</FieldLabel>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-          {CUSTOMER_FLOW_OPTIONS.map((opt) => (
-            <OptionTile
-              key={opt}
-              active={flow.includes(opt)}
-              onClick={() => setValue("customer_flow", toggleInArray(flow, opt))}
-              size="sm"
-            >
-              {t(`customerFlow.${opt}`)}
-            </OptionTile>
-          ))}
-        </div>
-      </div>
-
-      <div className="space-y-1.5">
-        <FieldLabel optional>{t("store.flagship")}</FieldLabel>
-        <Input
-          placeholder={t("store.flagshipPlaceholder")}
-          {...register("flagship_product")}
-          className="bg-secondary border-border h-9 sm:h-10 text-sm"
-        />
-      </div>
-
-      <div className="space-y-1.5">
-        <FieldLabel optional>{t("store.competitors")}</FieldLabel>
-        <Textarea
-          rows={2}
-          placeholder={t("store.competitorsPlaceholder")}
-          {...register("local_competitors")}
-          className="bg-secondary border-border resize-none text-sm"
-        />
-      </div>
-    </div>
-  )
-}
-
-/* ================================================================== */
-/*  STEP 6 — Identity & point of sale                                 */
-/* ================================================================== */
-
-export function IdentityStep({ form }: StepProps) {
-  const { register, watch, setValue } = form
-  const { t } = useLanguage()
-  const materials = watch("promo_materials") || []
-  const hasLogo = watch("has_logo")
-
-  return (
-    <div className="space-y-4 sm:space-y-6">
-      <StepHeader
-        icon={Palette}
-        title={t("identity.title")}
-        subtitle={t("identity.subtitle")}
-      />
-
-      <div className="flex items-center justify-between p-3 sm:p-4 rounded-lg bg-secondary border border-border">
-        <Label className="text-xs sm:text-sm font-medium">
-          {t("identity.hasLogo")}
-        </Label>
-        <Switch
-          checked={hasLogo || false}
-          onCheckedChange={(v) => setValue("has_logo", v)}
-        />
-      </div>
-
-      {hasLogo && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-          <div className="space-y-1.5">
-            <FieldLabel optional>{t("identity.logoYear")}</FieldLabel>
-            <Input
-              placeholder="2018"
-              {...register("logo_year")}
-              className="bg-secondary border-border h-9 sm:h-10 text-sm"
-            />
-          </div>
-        </div>
-      )}
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-        <div className="space-y-1.5">
-          <FieldLabel optional>{t("identity.brandColors")}</FieldLabel>
-          <Input
-            placeholder={t("identity.brandColorsPlaceholder")}
-            {...register("brand_colors")}
-            className="bg-secondary border-border h-9 sm:h-10 text-sm"
-          />
-        </div>
-        <div className="space-y-1.5">
-          <FieldLabel optional>{t("identity.brandFonts")}</FieldLabel>
-          <Input
-            placeholder={t("identity.brandFontsPlaceholder")}
-            {...register("brand_fonts")}
-            className="bg-secondary border-border h-9 sm:h-10 text-sm"
-          />
-        </div>
-      </div>
-
-      <div className="space-y-1.5">
-        <FieldLabel optional>{t("identity.guidelines")}</FieldLabel>
-        <Input
-          type="url"
-          placeholder={t("identity.guidelinesPlaceholder")}
-          {...register("brand_guidelines_url")}
-          className="bg-secondary border-border h-9 sm:h-10 text-sm"
-        />
-      </div>
-
-      <div className="space-y-2">
-        <FieldLabel>{t("identity.materials")}</FieldLabel>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-          {PROMO_MATERIALS_OPTIONS.map((opt) => (
-            <OptionTile
-              key={opt}
-              active={materials.includes(opt)}
-              onClick={() => setValue("promo_materials", toggleInArray(materials, opt))}
-              size="sm"
-            >
-              {t(`promo.${opt}`)}
-            </OptionTile>
-          ))}
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-        <div className="space-y-1.5">
-          <FieldLabel>{t("identity.materialsCoordinated")}</FieldLabel>
-          <YesNoSelect
-            value={watch("materials_coordinated")}
-            onChange={(v) =>
-              setValue(
-                "materials_coordinated",
-                v as ClientFormData["materials_coordinated"],
-              )
-            }
-          />
-        </div>
-        <div className="space-y-1.5">
-          <FieldLabel>{t("identity.signageCoordinated")}</FieldLabel>
-          <YesNoSelect
-            value={watch("signage_coordinated")}
-            onChange={(v) =>
-              setValue(
-                "signage_coordinated",
-                v as ClientFormData["signage_coordinated"],
-              )
-            }
-          />
-        </div>
-      </div>
-    </div>
-  )
-}
-
-/* ================================================================== */
-/*  STEP 7 — Digital presence (web + social + GMB)                    */
-/* ================================================================== */
-
-export function DigitalPresenceStep({ form }: StepProps) {
-  const { register, watch, setValue } = form
-  const { t } = useLanguage()
-  const sections = watch("website_sections") || []
-  const channels = watch("social_channels") || []
-
-  return (
-    <div className="space-y-5 sm:space-y-7">
-      <StepHeader
-        icon={Globe}
-        title={t("digital.title")}
-        subtitle={t("digital.subtitle")}
-      />
-
-      {/* --- Website --- */}
-      <section className="space-y-3 sm:space-y-4 p-3 sm:p-4 rounded-xl border border-border bg-secondary/40">
-        <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-          {t("web.section")}
-        </h3>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-          <div className="space-y-1.5">
-            <FieldLabel>{t("web.hasWebsite")}</FieldLabel>
-            <YesNoSelect
-              withInArrivo
-              value={watch("has_website")}
-              onChange={(v) =>
-                setValue("has_website", v as ClientFormData["has_website"])
-              }
-            />
-          </div>
-          <div className="space-y-1.5">
-            <FieldLabel optional>{t("web.year")}</FieldLabel>
-            <Input
-              placeholder="2020"
-              {...register("website_year")}
-              className="bg-secondary border-border h-9 sm:h-10 text-sm"
-            />
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-          <div className="space-y-1.5">
-            <FieldLabel>{t("web.updated")}</FieldLabel>
-            <YesNoSelect
-              value={watch("website_updated_regularly")}
-              onChange={(v) =>
-                setValue(
-                  "website_updated_regularly",
-                  v as ClientFormData["website_updated_regularly"],
-                )
-              }
-            />
-          </div>
-          <div className="space-y-1.5">
-            <FieldLabel>{t("web.seo")}</FieldLabel>
-            <YesNoSelect
-              value={watch("website_seo_optimised")}
-              onChange={(v) =>
-                setValue(
-                  "website_seo_optimised",
-                  v as ClientFormData["website_seo_optimised"],
-                )
-              }
-            />
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-          <div className="space-y-1.5">
-            <FieldLabel optional>{t("web.pages")}</FieldLabel>
-            <Input
-              placeholder={t("web.pagesPlaceholder")}
-              {...register("website_page_count")}
-              className="bg-secondary border-border h-9 sm:h-10 text-sm"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <FieldLabel optional>{t("web.vendor")}</FieldLabel>
-            <Input
-              {...register("website_vendor")}
-              className="bg-secondary border-border h-9 sm:h-10 text-sm"
-            />
-          </div>
-        </div>
-
-        <div className="space-y-2">
-          <FieldLabel>{t("web.sections")}</FieldLabel>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
-            {WEBSITE_SECTIONS.map((sec) => (
-              <OptionTile
-                key={sec}
-                active={sections.includes(sec)}
-                onClick={() =>
-                  setValue("website_sections", toggleInArray(sections, sec))
-                }
-                size="sm"
-              >
-                {t(`section.${sec}`)}
-              </OptionTile>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* --- Social media --- */}
-      <section className="space-y-3 sm:space-y-4 p-3 sm:p-4 rounded-xl border border-border bg-secondary/40">
-        <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-          {t("social.section")}
-        </h3>
-
-        <div className="space-y-1.5">
-          <FieldLabel>{t("social.active")}</FieldLabel>
-          <YesNoSelect
-            withInArrivo
-            value={watch("social_active")}
-            onChange={(v) =>
-              setValue("social_active", v as ClientFormData["social_active"])
-            }
-          />
-        </div>
-
-        <div className="space-y-2">
-          <FieldLabel>{t("social.channels")}</FieldLabel>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
-            {SOCIAL_CHANNELS.map((ch) => (
-              <OptionTile
-                key={ch}
-                active={channels.includes(ch)}
-                onClick={() =>
-                  setValue("social_channels", toggleInArray(channels, ch))
-                }
-                size="sm"
-              >
-                {t(`channel.${ch}`)}
-              </OptionTile>
-            ))}
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-          <div className="space-y-1.5">
-            <FieldLabel optional>{t("social.frequency")}</FieldLabel>
-            <Select
-              value={watch("social_frequency") ?? ""}
-              onValueChange={(v) =>
-                setValue(
-                  "social_frequency",
-                  v as ClientFormData["social_frequency"],
-                )
-              }
-            >
-              <SelectTrigger className="bg-secondary border-border h-9 sm:h-10 text-sm">
-                <SelectValue placeholder="—" />
-              </SelectTrigger>
-              <SelectContent>
-                {FREQUENCY_OPTIONS.map((f) => (
-                  <SelectItem key={f.value} value={f.value}>
-                    {t(`freq.${f.value}`)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1.5">
-            <FieldLabel optional>{t("social.tone")}</FieldLabel>
-            <Select
-              value={watch("social_tone") ?? ""}
-              onValueChange={(v) =>
-                setValue("social_tone", v as ClientFormData["social_tone"])
-              }
-            >
-              <SelectTrigger className="bg-secondary border-border h-9 sm:h-10 text-sm">
-                <SelectValue placeholder="—" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="professionale">{t("tone.professionale")}</SelectItem>
-                <SelectItem value="amichevole">{t("tone.amichevole")}</SelectItem>
-                <SelectItem value="tecnico">{t("tone.tecnico")}</SelectItem>
-                <SelectItem value="indefinito">{t("tone.indefinito")}</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-          <div className="space-y-1.5">
-            <FieldLabel optional>{t("social.managedBy")}</FieldLabel>
-            <Input
-              {...register("social_managed_by")}
-              placeholder="Nome / team"
-              className="bg-secondary border-border h-9 sm:h-10 text-sm"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <FieldLabel optional>{t("social.vendor")}</FieldLabel>
-            <Input
-              {...register("social_vendor")}
-              className="bg-secondary border-border h-9 sm:h-10 text-sm"
-            />
-          </div>
-        </div>
-      </section>
-
-      {/* --- Google Business --- */}
-      <section className="space-y-3 sm:space-y-4 p-3 sm:p-4 rounded-xl border border-border bg-secondary/40">
-        <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-          {t("gmb.section")}
-        </h3>
-
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
-          <div className="space-y-1.5">
-            <FieldLabel>{t("gmb.active")}</FieldLabel>
-            <YesNoSelect
-              withInArrivo
-              value={watch("gmb_active")}
-              onChange={(v) =>
-                setValue("gmb_active", v as ClientFormData["gmb_active"])
-              }
-            />
-          </div>
-          <div className="space-y-1.5">
-            <FieldLabel>{t("gmb.updated")}</FieldLabel>
-            <YesNoSelect
-              value={watch("gmb_up_to_date")}
-              onChange={(v) =>
-                setValue("gmb_up_to_date", v as ClientFormData["gmb_up_to_date"])
-              }
-            />
-          </div>
-          <div className="space-y-1.5">
-            <FieldLabel>{t("gmb.reviews")}</FieldLabel>
-            <YesNoSelect
-              value={watch("gmb_has_reviews")}
-              onChange={(v) =>
-                setValue("gmb_has_reviews", v as ClientFormData["gmb_has_reviews"])
-              }
-            />
-          </div>
-        </div>
-      </section>
-    </div>
-  )
-}
-
-/* ================================================================== */
-/*  STEP 8 — Marketing & sponsorizzazioni                             */
-/* ================================================================== */
-
-export function MarketingStep({ form }: StepProps) {
-  const { register, watch, setValue } = form
-  const { t } = useLanguage()
-  const onlineAds = watch("online_ads_channels") || []
-  const offlineAds = watch("offline_ads_channels") || []
-
-  return (
-    <div className="space-y-5 sm:space-y-7">
-      <StepHeader
-        icon={Megaphone}
-        title={t("marketing.title")}
-        subtitle={t("marketing.subtitle")}
-      />
-
-      {/* Newsletter */}
-      <section className="space-y-3 sm:space-y-4 p-3 sm:p-4 rounded-xl border border-border bg-secondary/40">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-          <div className="space-y-1.5">
-            <FieldLabel>{t("marketing.newsletterActive")}</FieldLabel>
-            <YesNoSelect
-              value={watch("newsletter_active")}
-              onChange={(v) =>
-                setValue(
-                  "newsletter_active",
-                  v as ClientFormData["newsletter_active"],
-                )
-              }
-            />
-          </div>
-          <div className="space-y-1.5">
-            <FieldLabel optional>{t("marketing.newsletterFrequency")}</FieldLabel>
-            <Select
-              value={watch("newsletter_frequency") ?? ""}
-              onValueChange={(v) =>
-                setValue(
-                  "newsletter_frequency",
-                  v as ClientFormData["newsletter_frequency"],
-                )
-              }
-            >
-              <SelectTrigger className="bg-secondary border-border h-9 sm:h-10 text-sm">
-                <SelectValue placeholder="—" />
-              </SelectTrigger>
-              <SelectContent>
-                {FREQUENCY_OPTIONS.map((f) => (
-                  <SelectItem key={f.value} value={f.value}>
-                    {t(`freq.${f.value}`)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-          <div className="space-y-1.5">
-            <FieldLabel optional>{t("marketing.newsletterPlatform")}</FieldLabel>
-            <Input
-              placeholder={t("marketing.newsletterPlatformPlaceholder")}
-              {...register("newsletter_platform")}
-              className="bg-secondary border-border h-9 sm:h-10 text-sm"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <FieldLabel optional>{t("marketing.newsletterVendor")}</FieldLabel>
-            <Input
-              {...register("newsletter_vendor")}
-              className="bg-secondary border-border h-9 sm:h-10 text-sm"
-            />
-          </div>
-        </div>
-      </section>
-
-      {/* WhatsApp */}
-      <section className="space-y-3 sm:space-y-4 p-3 sm:p-4 rounded-xl border border-border bg-secondary/40">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-          <div className="space-y-1.5">
-            <FieldLabel>{t("marketing.whatsappActive")}</FieldLabel>
-            <YesNoSelect
-              value={watch("whatsapp_active")}
-              onChange={(v) =>
-                setValue("whatsapp_active", v as ClientFormData["whatsapp_active"])
-              }
-            />
-          </div>
-          <div className="space-y-1.5">
-            <FieldLabel optional>{t("marketing.whatsappFrequency")}</FieldLabel>
-            <Select
-              value={watch("whatsapp_frequency") ?? ""}
-              onValueChange={(v) =>
-                setValue(
-                  "whatsapp_frequency",
-                  v as ClientFormData["whatsapp_frequency"],
-                )
-              }
-            >
-              <SelectTrigger className="bg-secondary border-border h-9 sm:h-10 text-sm">
-                <SelectValue placeholder="—" />
-              </SelectTrigger>
-              <SelectContent>
-                {FREQUENCY_OPTIONS.map((f) => (
-                  <SelectItem key={f.value} value={f.value}>
-                    {t(`freq.${f.value}`)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-      </section>
-
-      {/* Online ads */}
-      <section className="space-y-3 sm:space-y-4 p-3 sm:p-4 rounded-xl border border-border bg-secondary/40">
-        <div className="space-y-1.5">
-          <FieldLabel>{t("marketing.onlineAds")}</FieldLabel>
-          <YesNoSelect
-            withInArrivo
-            value={watch("online_ads_active")}
-            onChange={(v) =>
-              setValue(
-                "online_ads_active",
-                v as ClientFormData["online_ads_active"],
-              )
-            }
-          />
-        </div>
-
-        <div className="space-y-2">
-          <FieldLabel>{t("marketing.onlineAdsChannels")}</FieldLabel>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
-            {ONLINE_AD_CHANNELS.map((ch) => (
-              <OptionTile
-                key={ch}
-                active={onlineAds.includes(ch)}
-                onClick={() =>
-                  setValue("online_ads_channels", toggleInArray(onlineAds, ch))
-                }
-                size="sm"
-              >
-                {t(`adChannel.${ch}`)}
-              </OptionTile>
-            ))}
-          </div>
-        </div>
-
-        <div className="space-y-1.5">
-          <FieldLabel optional>{t("marketing.onlineAdsVendor")}</FieldLabel>
-          <Input
-            {...register("online_ads_vendor")}
-            className="bg-secondary border-border h-9 sm:h-10 text-sm"
-          />
-        </div>
-      </section>
-
-      {/* Offline ads */}
-      <section className="space-y-3 sm:space-y-4 p-3 sm:p-4 rounded-xl border border-border bg-secondary/40">
-        <div className="space-y-1.5">
-          <FieldLabel>{t("marketing.offlineAds")}</FieldLabel>
-          <YesNoSelect
-            withInArrivo
-            value={watch("offline_ads_active")}
-            onChange={(v) =>
-              setValue(
-                "offline_ads_active",
-                v as ClientFormData["offline_ads_active"],
-              )
-            }
-          />
-        </div>
-
-        <div className="space-y-2">
-          <FieldLabel>{t("marketing.offlineAdsChannels")}</FieldLabel>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
-            {OFFLINE_AD_CHANNELS.map((ch) => (
-              <OptionTile
-                key={ch}
-                active={offlineAds.includes(ch)}
-                onClick={() =>
-                  setValue("offline_ads_channels", toggleInArray(offlineAds, ch))
-                }
-                size="sm"
-              >
-                {t(`adChannel.${ch}`)}
-              </OptionTile>
-            ))}
-          </div>
-        </div>
-
-        <div className="space-y-1.5">
-          <FieldLabel optional>{t("marketing.offlineAdsVendor")}</FieldLabel>
-          <Input
-            {...register("offline_ads_vendor")}
-            className="bg-secondary border-border h-9 sm:h-10 text-sm"
-          />
-        </div>
-      </section>
-    </div>
-  )
-}
-
-/* ================================================================== */
-/*  STEP 9 — Requested services (richiesta)                           */
-/* ================================================================== */
-
-export function RequestedServicesStep({ form }: StepProps) {
-  const { watch, setValue, register } = form
-  const { t } = useLanguage()
-  const projectTypes = watch("project_type") || []
-  const brand = watch("services_brand") || []
-  const social = watch("services_social") || []
-  const ads = watch("services_ads") || []
-  const web = watch("services_web") || []
-
-  return (
-    <div className="space-y-5 sm:space-y-7">
+    <div className="space-y-5 sm:space-y-6">
       <StepHeader
         icon={Sparkles}
         title={t("services.title")}
         subtitle={t("services.subtitle")}
       />
 
-      {/* Macro categories quick-pick */}
-      <div className="space-y-2">
-        <FieldLabel>{t("services.macroCategories")}</FieldLabel>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-          {PROJECT_TYPES.map((p) => (
-            <OptionTile
-              key={p.value}
-              active={projectTypes.includes(p.value)}
-              onClick={() =>
-                setValue("project_type", toggleInArray(projectTypes, p.value))
+      {/* ───── Website ───── */}
+      <ServiceCard
+        icon={Globe}
+        title={t("svc.website.title")}
+        question={t("svc.website.question")}
+        value={wantsWebsite}
+        onToggle={(v) => setValue("wants_website", v)}
+      >
+        <div className="space-y-1.5">
+          <FieldLabel>{t("svc.website.platform")}</FieldLabel>
+          <p className="text-[11px] text-muted-foreground -mt-0.5">
+            {t("svc.website.platformHint")}
+          </p>
+          <div className="grid gap-2 sm:grid-cols-1">
+            {WEBSITE_PLATFORMS.map((p) => (
+              <OptionTile
+                key={p.value}
+                active={watch("website_platform") === p.value}
+                onClick={() =>
+                  setValue(
+                    "website_platform",
+                    watch("website_platform") === p.value ? null : (p.value as WebsitePlatform),
+                  )
+                }
+              >
+                {t(`websitePlatform.${p.value}`)}
+              </OptionTile>
+            ))}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="space-y-1.5">
+            <FieldLabel optional>{t("svc.website.currentStatus")}</FieldLabel>
+            <Select
+              value={watch("current_website_status") ?? ""}
+              onValueChange={(v) =>
+                setValue(
+                  "current_website_status",
+                  v as ClientFormData["current_website_status"],
+                )
               }
             >
-              {t(`projectType.${p.value}`)}
-            </OptionTile>
-          ))}
-        </div>
-      </div>
-
-      {/* 1. Brand */}
-      <section className="space-y-3 p-3 sm:p-4 rounded-xl border border-border bg-secondary/40">
-        <h3 className="text-sm font-semibold text-foreground">
-          {t("services.brand.title")}
-        </h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-          {SERVICES_BRAND.map((k) => (
-            <OptionTile
-              key={k}
-              active={brand.includes(k)}
-              onClick={() => setValue("services_brand", toggleInArray(brand, k))}
-              size="sm"
+              <SelectTrigger className="bg-background border-border h-9 sm:h-10 text-sm">
+                <SelectValue placeholder="—" />
+              </SelectTrigger>
+              <SelectContent>
+                {CURRENT_WEBSITE_STATUS_OPTIONS.map((s) => (
+                  <SelectItem key={s} value={s}>
+                    {t(`websiteCurrent.${s}`)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <FieldLabel optional>{t("svc.website.purpose")}</FieldLabel>
+            <Select
+              value={watch("website_purpose") ?? ""}
+              onValueChange={(v) => setValue("website_purpose", v)}
             >
-              {t(`svcBrand.${k}`)}
-            </OptionTile>
-          ))}
+              <SelectTrigger className="bg-background border-border h-9 sm:h-10 text-sm">
+                <SelectValue placeholder="—" />
+              </SelectTrigger>
+              <SelectContent>
+                {WEBSITE_PURPOSES.map((p) => (
+                  <SelectItem key={p} value={p}>
+                    {t(`websitePurpose.${p}`)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
-      </section>
+      </ServiceCard>
 
-      {/* 2. Social */}
-      <section className="space-y-3 p-3 sm:p-4 rounded-xl border border-border bg-secondary/40">
-        <h3 className="text-sm font-semibold text-foreground">
-          {t("services.social.title")}
-        </h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-          {SERVICES_SOCIAL.map((k) => (
-            <OptionTile
-              key={k}
-              active={social.includes(k)}
-              onClick={() => setValue("services_social", toggleInArray(social, k))}
-              size="sm"
-            >
-              {t(`svcSocial.${k}`)}
-            </OptionTile>
-          ))}
-        </div>
-      </section>
-
-      {/* 3. Ads */}
-      <section className="space-y-3 p-3 sm:p-4 rounded-xl border border-border bg-secondary/40">
-        <h3 className="text-sm font-semibold text-foreground">
-          {t("services.ads.title")}
-        </h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-          {SERVICES_ADS.map((k) => (
-            <OptionTile
-              key={k}
-              active={ads.includes(k)}
-              onClick={() => setValue("services_ads", toggleInArray(ads, k))}
-              size="sm"
-            >
-              {t(`svcAds.${k}`)}
-            </OptionTile>
-          ))}
-        </div>
-      </section>
-
-      {/* 4. Web */}
-      <section className="space-y-3 p-3 sm:p-4 rounded-xl border border-border bg-secondary/40">
-        <h3 className="text-sm font-semibold text-foreground">
-          {t("services.web.title")}
-        </h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-          {SERVICES_WEB.map((k) => (
-            <OptionTile
-              key={k}
-              active={web.includes(k)}
-              onClick={() => setValue("services_web", toggleInArray(web, k))}
-              size="sm"
-            >
-              {t(`svcWeb.${k}`)}
-            </OptionTile>
-          ))}
-        </div>
-      </section>
-
-      <div className="space-y-1.5">
-        <FieldLabel optional>{t("project.description")}</FieldLabel>
-        <Textarea
-          rows={3}
-          placeholder={t("project.descriptionPlaceholder")}
-          {...register("project_description")}
-          className="bg-secondary border-border resize-none text-sm"
-        />
-      </div>
-    </div>
-  )
-}
-
-/* ================================================================== */
-/*  STEP 10 — Video & photo specifics (conditional)                   */
-/* ================================================================== */
-
-export function VideoPhotoStep({ form }: StepProps) {
-  const { register, watch, setValue } = form
-  const { t } = useLanguage()
-
-  return (
-    <div className="space-y-4 sm:space-y-6">
-      <StepHeader
-        icon={Video}
-        title={t("videoPhoto.title")}
-        subtitle={t("videoPhoto.subtitle")}
-      />
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+      {/* ───── Logo ───── */}
+      <ServiceCard
+        icon={Palette}
+        title={t("svc.logo.title")}
+        question={t("svc.logo.question")}
+        value={wantsLogo}
+        onToggle={(v) => setValue("wants_new_logo", v)}
+      >
         <div className="space-y-1.5">
-          <FieldLabel optional>{t("videoPhoto.style")}</FieldLabel>
-          <Select
-            value={watch("video_style") ?? ""}
-            onValueChange={(v) => setValue("video_style", v)}
-          >
-            <SelectTrigger className="bg-secondary border-border h-9 sm:h-10 text-sm">
-              <SelectValue placeholder={t("videoPhoto.stylePlaceholder")} />
-            </SelectTrigger>
-            <SelectContent>
-              {VIDEO_STYLES.map((s) => (
-                <SelectItem key={s.value} value={s.value}>
-                  {t(`videoStyle.${s.value}`)}
-                </SelectItem>
+          <FieldLabel>{t("svc.logo.style")}</FieldLabel>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            {LOGO_STYLES.map((s) => (
+              <OptionTile
+                key={s}
+                active={logoStyles.includes(s)}
+                onClick={() => {
+                  const next = toggleInArray(logoStyles, s)
+                  setValue("logo_style_preference", next.join(", "))
+                }}
+                size="sm"
+              >
+                {t(`logoStyle.${s}`)}
+              </OptionTile>
+            ))}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="space-y-1.5">
+            <FieldLabel>{t("svc.logo.palette")}</FieldLabel>
+            <Input
+              placeholder={t("svc.logo.palettePlaceholder")}
+              {...register("logo_palette_preference")}
+              className="bg-background border-border h-9 sm:h-10 text-sm"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <FieldLabel optional>{t("svc.logo.references")}</FieldLabel>
+            <Input
+              placeholder={t("svc.logo.referencesPlaceholder")}
+              {...register("brand_references")}
+              className="bg-background border-border h-9 sm:h-10 text-sm"
+            />
+          </div>
+        </div>
+      </ServiceCard>
+
+      {/* ───── Social ───── */}
+      <section className="rounded-xl border border-border bg-secondary/40 overflow-hidden">
+        <header className="flex items-center gap-2.5 px-4 py-3 border-b border-border bg-background/40">
+          <div className="p-1.5 rounded-md bg-foreground/[0.06] text-foreground">
+            <Share2 className="h-4 w-4" />
+          </div>
+          <div className="min-w-0">
+            <h3 className="text-sm font-semibold text-foreground">{t("svc.social.title")}</h3>
+          </div>
+        </header>
+        <div className="px-4 py-4 space-y-4 bg-secondary/20">
+          <div className="space-y-1.5">
+            <FieldLabel>{t("svc.social.currentChannels")}</FieldLabel>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {SOCIAL_CHANNELS.map((c) => (
+                <OptionTile
+                  key={c}
+                  active={socialChannels.includes(c)}
+                  onClick={() =>
+                    setValue("current_social_channels", toggleInArray(socialChannels, c))
+                  }
+                  size="sm"
+                >
+                  {t(`channel.${c}`)}
+                </OptionTile>
               ))}
-            </SelectContent>
-          </Select>
+            </div>
+          </div>
+
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pt-2 border-t border-border/60">
+            <div className="min-w-0">
+              <p className="text-xs sm:text-sm font-medium text-foreground">
+                {t("svc.social.management")}
+              </p>
+            </div>
+            <YesNoToggle value={wantsSocial} onChange={(v) => setValue("wants_social_management", v)} />
+          </div>
+
+          {wantsSocial && (
+            <div className="space-y-1.5">
+              <FieldLabel optional>{t("svc.social.goals")}</FieldLabel>
+              <Textarea
+                rows={2}
+                placeholder={t("svc.social.goalsPlaceholder")}
+                {...register("social_management_goals")}
+                className="bg-background border-border resize-none text-sm"
+              />
+            </div>
+          )}
         </div>
-        <div className="space-y-1.5">
-          <FieldLabel optional>{t("videoPhoto.duration")}</FieldLabel>
-          <Input
-            placeholder={t("videoPhoto.durationPlaceholder")}
-            {...register("video_duration")}
-            className="bg-secondary border-border h-9 sm:h-10 text-sm"
+      </section>
+
+      {/* ───── Video & Photo ───── */}
+      <section className="rounded-xl border border-border bg-secondary/40 overflow-hidden">
+        <header className="flex items-center gap-2.5 px-4 py-3 border-b border-border bg-background/40">
+          <div className="p-1.5 rounded-md bg-foreground/[0.06] text-foreground">
+            <Video className="h-4 w-4" />
+          </div>
+          <div className="min-w-0">
+            <h3 className="text-sm font-semibold text-foreground">{t("svc.video.title")}</h3>
+            <p className="text-[11px] sm:text-xs text-muted-foreground">{t("svc.video.hint")}</p>
+          </div>
+        </header>
+        <div className="px-4 py-4 space-y-3 bg-secondary/20">
+          <FormatCheckRow
+            icon={Video}
+            label={t("svc.video.short")}
+            description={t("svc.video.shortDesc")}
+            value={watch("wants_short_videos")}
+            onChange={(v) => setValue("wants_short_videos", v)}
           />
-        </div>
-      </div>
-
-      <div className="space-y-1.5">
-        <FieldLabel optional>{t("videoPhoto.location")}</FieldLabel>
-        <Input
-          placeholder={t("videoPhoto.locationPlaceholder")}
-          {...register("location_preference")}
-          className="bg-secondary border-border h-9 sm:h-10 text-sm"
-        />
-      </div>
-
-      <div className="flex items-center justify-between p-3 sm:p-4 rounded-lg bg-secondary border border-border">
-        <div>
-          <Label className="text-xs sm:text-sm font-medium">
-            {t("videoPhoto.talent")}
-          </Label>
-          <p className="text-[10px] sm:text-xs text-muted-foreground">
-            {t("videoPhoto.talentDesc")}
-          </p>
-        </div>
-        <Switch
-          checked={watch("talent_needed") || false}
-          onCheckedChange={(c) => setValue("talent_needed", c)}
-        />
-      </div>
-
-      <div className="space-y-1.5">
-        <FieldLabel optional>{t("videoPhoto.equipment")}</FieldLabel>
-        <Textarea
-          rows={2}
-          placeholder={t("videoPhoto.equipmentPlaceholder")}
-          {...register("equipment_notes")}
-          className="bg-secondary border-border resize-none text-sm"
-        />
-      </div>
-    </div>
-  )
-}
-
-/* ================================================================== */
-/*  STEP 11 — Website specifics (conditional)                         */
-/* ================================================================== */
-
-export function WebsiteStep({ form }: StepProps) {
-  const { register, watch, setValue } = form
-  const { t } = useLanguage()
-  const features = watch("website_features") || []
-
-  const WEBSITE_FEATURES = [
-    "cms",
-    "booking",
-    "payments",
-    "analytics",
-    "seo",
-    "multilingual",
-    "api",
-    "auth",
-    "accessibility",
-    "performance",
-  ] as const
-
-  return (
-    <div className="space-y-4 sm:space-y-6">
-      <StepHeader
-        icon={Globe}
-        title={t("website.title")}
-        subtitle={t("website.subtitle")}
-      />
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-        <div className="space-y-1.5">
-          <FieldLabel optional>{t("website.type")}</FieldLabel>
-          <Select
-            value={watch("website_type") ?? ""}
-            onValueChange={(v) => setValue("website_type", v)}
-          >
-            <SelectTrigger className="bg-secondary border-border h-9 sm:h-10 text-sm">
-              <SelectValue placeholder={t("website.typePlaceholder")} />
-            </SelectTrigger>
-            <SelectContent>
-              {WEBSITE_TYPES.map((s) => (
-                <SelectItem key={s.value} value={s.value}>
-                  {t(`websiteType.${s.value}`)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-1.5">
-          <FieldLabel optional>{t("website.domain")}</FieldLabel>
-          <Input
-            placeholder={t("website.domainPlaceholder")}
-            {...register("domain_name")}
-            className="bg-secondary border-border h-9 sm:h-10 text-sm"
+          <FormatCheckRow
+            icon={Video}
+            label={t("svc.video.long")}
+            description={t("svc.video.longDesc")}
+            value={watch("wants_long_videos")}
+            onChange={(v) => setValue("wants_long_videos", v)}
           />
-        </div>
-      </div>
+          <FormatCheckRow
+            icon={Video}
+            label={t("svc.video.cinematic")}
+            description={t("svc.video.cinematicDesc")}
+            value={watch("wants_cinematic_videos")}
+            onChange={(v) => setValue("wants_cinematic_videos", v)}
+          />
+          <FormatCheckRow
+            icon={Camera}
+            label={t("svc.video.photo")}
+            description={t("svc.video.photoDesc")}
+            value={watch("wants_photography")}
+            onChange={(v) => setValue("wants_photography", v)}
+          />
 
-      <div className="space-y-2">
-        <FieldLabel>{t("website.features")}</FieldLabel>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
-          {WEBSITE_FEATURES.map((f) => (
-            <OptionTile
-              key={f}
-              active={features.includes(f)}
-              onClick={() => setValue("website_features", toggleInArray(features, f))}
-              size="sm"
+          {(watch("wants_short_videos") ||
+            watch("wants_long_videos") ||
+            watch("wants_cinematic_videos") ||
+            watch("wants_photography")) && (
+            <div className="space-y-1.5 pt-2 border-t border-border/60">
+              <FieldLabel optional>{t("svc.video.notes")}</FieldLabel>
+              <Textarea
+                rows={2}
+                placeholder={t("svc.video.notesPlaceholder")}
+                {...register("video_photo_notes")}
+                className="bg-background border-border resize-none text-sm"
+              />
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* ───── Graphic Design ───── */}
+      <ServiceCard
+        icon={Layout}
+        title={t("svc.graphic.title")}
+        question={t("svc.graphic.question")}
+        value={wantsGraphic}
+        onToggle={(v) => setValue("wants_graphic_design", v)}
+      >
+        <div className="space-y-1.5">
+          <FieldLabel>{t("svc.graphic.items")}</FieldLabel>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            {GRAPHIC_DESIGN_ITEMS.map((g) => (
+              <OptionTile
+                key={g}
+                active={graphicItems.includes(g)}
+                onClick={() =>
+                  setValue("graphic_design_items", toggleInArray(graphicItems, g))
+                }
+                size="sm"
+              >
+                {t(`graphic.${g}`)}
+              </OptionTile>
+            ))}
+          </div>
+        </div>
+      </ServiceCard>
+
+      {/* ───── Ads ───── */}
+      <ServiceCard
+        icon={Megaphone}
+        title={t("svc.ads.title")}
+        question={t("svc.ads.question")}
+        value={wantsAds}
+        onToggle={(v) => setValue("wants_ads_management", v)}
+      >
+        <div className="space-y-1.5">
+          <FieldLabel>{t("svc.ads.platforms")}</FieldLabel>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            {ADS_PLATFORMS.map((p) => (
+              <OptionTile
+                key={p}
+                active={adsPlatforms.includes(p)}
+                onClick={() =>
+                  setValue("ads_platforms", toggleInArray(adsPlatforms, p))
+                }
+                size="sm"
+              >
+                {t(`adsPlatform.${p}`)}
+              </OptionTile>
+            ))}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="space-y-1.5">
+            <FieldLabel>{t("svc.ads.budget")}</FieldLabel>
+            <Select
+              value={watch("ads_monthly_budget") ?? ""}
+              onValueChange={(v) => setValue("ads_monthly_budget", v)}
             >
-              {t(`websiteFeature.${f}`)}
-            </OptionTile>
-          ))}
+              <SelectTrigger className="bg-background border-border h-9 sm:h-10 text-sm">
+                <SelectValue placeholder={t("svc.ads.budgetPlaceholder")} />
+              </SelectTrigger>
+              <SelectContent>
+                {ADS_MONTHLY_BUDGETS.map((b) => (
+                  <SelectItem key={b.value} value={b.value}>
+                    {t(`adsBudget.${b.value}`)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <FieldLabel optional>{t("svc.ads.previous")}</FieldLabel>
+            <YesNoToggle
+              value={watch("ads_previous_experience")}
+              onChange={(v) => setValue("ads_previous_experience", v)}
+            />
+          </div>
         </div>
-      </div>
-
-      <div className="space-y-1.5">
-        <FieldLabel optional>{t("website.hosting")}</FieldLabel>
-        <Input
-          placeholder={t("website.hostingPlaceholder")}
-          {...register("hosting_preference")}
-          className="bg-secondary border-border h-9 sm:h-10 text-sm"
-        />
-      </div>
+      </ServiceCard>
     </div>
   )
 }
 
-/* ================================================================== */
-/*  STEP 12 — Brand / audience                                        */
-/* ================================================================== */
-
-export function BrandInfoStep({ form }: StepProps) {
-  const { register } = form
-  const { t } = useLanguage()
-
+function FormatCheckRow({
+  icon: Icon,
+  label,
+  description,
+  value,
+  onChange,
+}: {
+  icon: React.ComponentType<{ className?: string }>
+  label: string
+  description: string
+  value: boolean | null | undefined
+  onChange: (v: boolean) => void
+}) {
   return (
-    <div className="space-y-4 sm:space-y-6">
-      <StepHeader
-        icon={Camera}
-        title={t("brand.title")}
-        subtitle={t("brand.subtitle")}
-      />
-
-      <div className="space-y-1.5">
-        <FieldLabel optional>{t("brand.audience")}</FieldLabel>
-        <Textarea
-          rows={3}
-          placeholder={t("brand.audiencePlaceholder")}
-          {...register("target_audience")}
-          className="bg-secondary border-border resize-none text-sm"
-        />
+    <button
+      type="button"
+      onClick={() => onChange(!value)}
+      className={`w-full flex items-center gap-3 p-3 rounded-lg border text-left transition-all duration-150 ${
+        value
+          ? "border-foreground bg-foreground/[0.04] ring-1 ring-foreground/10"
+          : "border-border bg-background hover:bg-secondary"
+      }`}
+    >
+      <span
+        className={`flex-shrink-0 h-5 w-5 rounded-md border-2 flex items-center justify-center ${
+          value ? "border-foreground bg-foreground" : "border-border bg-background"
+        }`}
+      >
+        {value && (
+          <svg className="h-3 w-3 text-background" viewBox="0 0 12 12" fill="none">
+            <path
+              d="M2.5 6.5L4.5 8.5L9.5 3.5"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        )}
+      </span>
+      <Icon className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+      <div className="min-w-0 flex-1">
+        <div className="text-xs sm:text-sm font-medium text-foreground">{label}</div>
+        <div className="text-[11px] text-muted-foreground truncate">{description}</div>
       </div>
-
-      <div className="space-y-1.5">
-        <FieldLabel optional>{t("brand.competitors")}</FieldLabel>
-        <Textarea
-          rows={3}
-          placeholder={t("brand.competitorsPlaceholder")}
-          {...register("competitors")}
-          className="bg-secondary border-border resize-none text-sm"
-        />
-      </div>
-    </div>
+    </button>
   )
 }
 
 /* ================================================================== */
-/*  STEP 13 — Pain points, budget, timeline, notes                    */
+/*  STEP 6 — Final brief (audience, pains, budget, timeline, description)
 /* ================================================================== */
 
 export function FinalStep({ form }: StepProps) {
-  const { watch, setValue } = form
+  const { register, watch, setValue } = form
   const { t } = useLanguage()
   const pains = watch("pain_points") || []
 
   return (
-    <div className="space-y-4 sm:space-y-6">
+    <div className="space-y-5 sm:space-y-6">
       <StepHeader
-        icon={AlertTriangle}
-        title={t("pain.title")}
-        subtitle={t("pain.subtitle")}
+        icon={Target}
+        title={t("final.title")}
+        subtitle={t("final.subtitle")}
       />
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-        {PAIN_POINTS.map((p) => (
-          <OptionTile
-            key={p}
-            active={pains.includes(p)}
-            onClick={() => setValue("pain_points", toggleInArray(pains, p))}
-            size="sm"
-          >
-            {t(`pain.${p}`)}
-          </OptionTile>
-        ))}
+      <section className="rounded-xl border border-border bg-secondary/40 p-4 space-y-3">
+        <div className="flex items-start gap-2.5">
+          <AlertTriangle className="h-4 w-4 mt-0.5 text-foreground" />
+          <div>
+            <h3 className="text-sm font-semibold text-foreground">
+              {t("final.painTitle")}
+            </h3>
+            <p className="text-[11px] sm:text-xs text-muted-foreground">
+              {t("final.painSubtitle")}
+            </p>
+          </div>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          {PAIN_POINTS.map((p) => (
+            <OptionTile
+              key={p}
+              active={pains.includes(p)}
+              onClick={() => setValue("pain_points", toggleInArray(pains, p))}
+              size="sm"
+            >
+              {t(`pain.${p}`)}
+            </OptionTile>
+          ))}
+        </div>
+      </section>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+        <div className="space-y-1.5">
+          <FieldLabel optional>{t("final.audience")}</FieldLabel>
+          <Textarea
+            rows={3}
+            placeholder={t("final.audiencePlaceholder")}
+            {...register("target_audience")}
+            className="bg-secondary border-border resize-none text-sm"
+          />
+        </div>
+        <div className="space-y-1.5">
+          <FieldLabel optional>{t("final.competitors")}</FieldLabel>
+          <Textarea
+            rows={3}
+            placeholder={t("final.competitorsPlaceholder")}
+            {...register("competitors")}
+            className="bg-secondary border-border resize-none text-sm"
+          />
+        </div>
+      </div>
+
+      <div className="space-y-1.5">
+        <FieldLabel optional>{t("final.description")}</FieldLabel>
+        <Textarea
+          rows={3}
+          placeholder={t("final.descriptionPlaceholder")}
+          {...register("project_description")}
+          className="bg-secondary border-border resize-none text-sm"
+        />
+      </div>
+
+      <div className="space-y-1.5 rounded-xl border border-border bg-secondary/40 p-4">
+        <FieldLabel>{t("final.contractMonths")}</FieldLabel>
+        <p className="text-[11px] text-muted-foreground -mt-0.5">{t("final.contractMonthsHint")}</p>
+        <Select
+          value={String(watch("retainer_contract_months") ?? 1)}
+          onValueChange={(v) =>
+            setValue(
+              "retainer_contract_months",
+              Number(v) as ClientFormData["retainer_contract_months"],
+            )
+          }
+        >
+          <SelectTrigger className="bg-background border-border h-9 sm:h-10 text-sm max-w-xs">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="1">{t("final.contract1")}</SelectItem>
+            <SelectItem value="3">{t("final.contract3")}</SelectItem>
+            <SelectItem value="6">{t("final.contract6")}</SelectItem>
+            <SelectItem value="12">{t("final.contract12")}</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
         <div className="space-y-1.5">
-          <FieldLabel>{t("project.budget")}</FieldLabel>
+          <FieldLabel>{t("final.budget")}</FieldLabel>
           <Select
             value={watch("budget_range") ?? ""}
             onValueChange={(v) => setValue("budget_range", v)}
           >
             <SelectTrigger className="bg-secondary border-border h-9 sm:h-10 text-sm">
-              <SelectValue placeholder={t("project.budgetPlaceholder")} />
+              <SelectValue placeholder={t("final.budgetPlaceholder")} />
             </SelectTrigger>
             <SelectContent>
               {BUDGET_RANGES.map((b) => (
@@ -1526,13 +1033,13 @@ export function FinalStep({ form }: StepProps) {
           </Select>
         </div>
         <div className="space-y-1.5">
-          <FieldLabel>{t("project.timeline")}</FieldLabel>
+          <FieldLabel>{t("final.timeline")}</FieldLabel>
           <Select
             value={watch("timeline") ?? ""}
             onValueChange={(v) => setValue("timeline", v)}
           >
             <SelectTrigger className="bg-secondary border-border h-9 sm:h-10 text-sm">
-              <SelectValue placeholder={t("project.timelinePlaceholder")} />
+              <SelectValue placeholder={t("final.timelinePlaceholder")} />
             </SelectTrigger>
             <SelectContent>
               {TIMELINES.map((tl) => (
@@ -1543,13 +1050,6 @@ export function FinalStep({ form }: StepProps) {
             </SelectContent>
           </Select>
         </div>
-      </div>
-
-      <div className="flex items-start gap-3 p-3 sm:p-4 rounded-xl border border-border bg-foreground/[0.03]">
-        <FileText className="h-4 w-4 sm:h-5 sm:w-5 mt-0.5 text-foreground" />
-        <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
-          {t("success.message").split(".")[0]}.
-        </p>
       </div>
     </div>
   )

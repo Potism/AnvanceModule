@@ -22,20 +22,22 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { 
-  Search, 
-  MoreHorizontal, 
-  Eye, 
-  FileDown, 
-  Trash2, 
+import {
+  Search,
+  MoreHorizontal,
+  Eye,
+  FileDown,
+  FileText,
+  Trash2,
   Mail,
   Phone,
   Building2,
-  RefreshCw
+  RefreshCw,
 } from "lucide-react"
 import { format } from "date-fns"
 import { it, enUS } from "date-fns/locale"
 import { generateClientPDF } from "@/lib/pdf-generator"
+import { loadServicePricing, loadServiceLineBilling } from "@/lib/service-pricing"
 import { createClient } from "@/lib/supabase/client"
 import { toast } from "sonner"
 import { ClientDetailModal } from "./client-detail-modal"
@@ -145,16 +147,37 @@ export function ClientsTable({ initialClients }: ClientsTableProps) {
     )
   }
 
-  const getProjectTypeBadges = (types: string[] | null) => {
+  /**
+   * Build the list of services to display as badges, supporting both the
+   * legacy `project_type` array and the new direct `wants_*` boolean fields.
+   */
+  const deriveServiceTypes = (client: Client): string[] => {
+    if (client.project_type && client.project_type.length > 0) return client.project_type
+    const out: string[] = []
+    if (client.wants_website) out.push("website")
+    if (client.wants_new_logo) out.push("branding")
+    if (client.wants_social_management) out.push("social_management")
+    if (client.wants_short_videos) out.push("reels")
+    if (client.wants_long_videos) out.push("youtube")
+    if (client.wants_cinematic_videos) out.push("cinematic_video")
+    if (client.wants_photography) out.push("photography")
+    if (client.wants_ads_management) out.push("ads")
+    return out
+  }
+
+  const getProjectTypeBadges = (types: string[] | null | undefined) => {
     if (!types || types.length === 0) return null
-    
+
     const getTypeLabel = (type: string) => {
-      const labels: Record<string, { it: string, en: string }> = {
-        'cinematic_video': { it: 'Video', en: 'Video' },
-        'reels': { it: 'Reels', en: 'Reels' },
-        'youtube': { it: 'YouTube', en: 'YouTube' },
-        'photography': { it: 'Foto', en: 'Photo' },
-        'website': { it: 'Web', en: 'Web' },
+      const labels: Record<string, { it: string; en: string }> = {
+        cinematic_video: { it: "Video", en: "Video" },
+        reels: { it: "Reels", en: "Reels" },
+        youtube: { it: "YouTube", en: "YouTube" },
+        photography: { it: "Foto", en: "Photo" },
+        website: { it: "Web", en: "Web" },
+        branding: { it: "Logo", en: "Logo" },
+        social_management: { it: "Social", en: "Social" },
+        ads: { it: "Ads", en: "Ads" },
       }
       return labels[type]?.[language] || type
     }
@@ -252,15 +275,27 @@ export function ClientsTable({ initialClients }: ClientsTableProps) {
                           <Eye className="h-4 w-4 mr-2" />
                           {t("admin.viewDetails")}
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => generateClientPDF(client)}>
+                        <DropdownMenuItem onClick={() => generateClientPDF(client, { mode: "brief" })}>
                           <FileDown className="h-4 w-4 mr-2" />
-                          {t("admin.downloadPdf")}
+                          {t("admin.downloadBriefPdf")}
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() =>
+                            generateClientPDF(client, {
+                              mode: "proposal",
+                              pricing: loadServicePricing(),
+                              lineBilling: loadServiceLineBilling(),
+                            })
+                          }
+                        >
+                          <FileText className="h-4 w-4 mr-2" />
+                          {t("admin.downloadProposalPdf")}
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem className="text-muted-foreground" disabled>
                           {t("admin.changeStatus")}
                         </DropdownMenuItem>
-                        {STATUS_OPTIONS.map(status => (
+                        {STATUS_OPTIONS.map((status) => (
                           <DropdownMenuItem
                             key={status.value}
                             onClick={() => updateClientStatus(client.id, status.value as Client["status"])}
@@ -271,7 +306,7 @@ export function ClientsTable({ initialClients }: ClientsTableProps) {
                           </DropdownMenuItem>
                         ))}
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem 
+                        <DropdownMenuItem
                           onClick={() => deleteClient(client.id)}
                           className="text-destructive focus:text-destructive"
                         >
@@ -281,7 +316,7 @@ export function ClientsTable({ initialClients }: ClientsTableProps) {
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </div>
-                  
+
                   <div className="space-y-1.5">
                     <p className="text-xs font-medium text-foreground">{client.contact_name}</p>
                     <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -299,7 +334,7 @@ export function ClientsTable({ initialClients }: ClientsTableProps) {
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       {getStatusBadge(client.status)}
-                      {getProjectTypeBadges(client.project_type)}
+                      {getProjectTypeBadges(deriveServiceTypes(client))}
                     </div>
                     <span className="text-[10px] text-muted-foreground">
                       {format(new Date(client.created_at), "d MMM yyyy", { locale: language === "it" ? it : enUS })}
@@ -363,7 +398,7 @@ export function ClientsTable({ initialClients }: ClientsTableProps) {
                         </div>
                       </TableCell>
                       <TableCell>
-                        {getProjectTypeBadges(client.project_type)}
+                        {getProjectTypeBadges(deriveServiceTypes(client))}
                       </TableCell>
                       <TableCell>
                         {getStatusBadge(client.status)}
@@ -383,15 +418,27 @@ export function ClientsTable({ initialClients }: ClientsTableProps) {
                               <Eye className="h-4 w-4 mr-2" />
                               {t("admin.viewDetails")}
                             </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => generateClientPDF(client)}>
+                            <DropdownMenuItem onClick={() => generateClientPDF(client, { mode: "brief" })}>
                               <FileDown className="h-4 w-4 mr-2" />
-                              {t("admin.downloadPdf")}
+                              {t("admin.downloadBriefPdf")}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() =>
+                                generateClientPDF(client, {
+                                  mode: "proposal",
+                                  pricing: loadServicePricing(),
+                                  lineBilling: loadServiceLineBilling(),
+                                })
+                              }
+                            >
+                              <FileText className="h-4 w-4 mr-2" />
+                              {t("admin.downloadProposalPdf")}
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem className="text-muted-foreground" disabled>
                               {t("admin.changeStatus")}
                             </DropdownMenuItem>
-                            {STATUS_OPTIONS.map(status => (
+                            {STATUS_OPTIONS.map((status) => (
                               <DropdownMenuItem
                                 key={status.value}
                                 onClick={() => updateClientStatus(client.id, status.value as Client["status"])}
@@ -421,14 +468,18 @@ export function ClientsTable({ initialClients }: ClientsTableProps) {
         </CardContent>
       </Card>
 
-      <ClientDetailModal 
-        client={selectedClient} 
+      <ClientDetailModal
+        client={selectedClient}
         onClose={() => setSelectedClient(null)}
         onStatusChange={(status) => {
           if (selectedClient) {
             updateClientStatus(selectedClient.id, status)
             setSelectedClient({ ...selectedClient, status })
           }
+        }}
+        onClientUpdated={(updated) => {
+          setClients((prev) => prev.map((c) => (c.id === updated.id ? updated : c)))
+          setSelectedClient(updated)
         }}
       />
     </>

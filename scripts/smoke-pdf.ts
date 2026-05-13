@@ -4,19 +4,22 @@
  * mock client. Writes the output to /tmp/anvance_smoke.pdf for inspection.
  *
  * Run with:   pnpm tsx scripts/smoke-pdf.ts
- *             (or  node_modules/.bin/tsx scripts/smoke-pdf.ts)
  */
 
 import fs from "node:fs"
 import { buildClientPDF } from "../lib/pdf-generator"
 import type { Client } from "../lib/types"
+import {
+  DEFAULT_SERVICE_PRICING,
+  DEFAULT_SERVICE_LINE_BILLING,
+} from "../lib/service-pricing"
 
 const mock: Client = {
   id: "abc12345-6789-4def-9012-345678901234",
   created_at: new Date().toISOString(),
   updated_at: new Date().toISOString(),
   agent_name: "Alessio Rossi",
-  brief_date: "2026-05-13",
+  brief_date: "2026-05-14",
   is_existing_client: true,
   client_since: "2024-09",
 
@@ -37,83 +40,39 @@ const mock: Client = {
   province: "MI",
   country: "Italia",
 
-  employees_count: "6",
-  store_location: "centro",
-  surface_sqm: "180",
-  annual_revenue: "€ 420.000",
-  customer_flow: ["clientela_fidelizzata", "traffico_comunicazione_scarsa"],
-  flagship_product: "Capsule collection di alta sartoria",
-  local_competitors: "Maison Rivoli, Atelier 22, Casa Cipriani",
+  // Direct service requests
+  wants_website: true,
+  website_platform: "custom_code",
+  website_purpose: "ecommerce",
+  current_website_status: "obsoleto",
 
-  has_logo: true,
-  logo_year: "2017",
-  brand_colors: "Bordeaux, oro, avorio",
-  brand_fonts: "Playfair Display, Inter",
-  brand_guidelines_url: "https://aurora.brand/guidelines.pdf",
-  promo_materials: ["biglietti_visita", "brochure", "catalogo"],
-  materials_coordinated: "no",
-  signage_coordinated: "si",
+  wants_new_logo: true,
+  logo_style_preference: "elegante, lusso",
+  logo_palette_preference: "Bordeaux + oro + avorio",
+  brand_references: "Brunello Cucinelli, La DoubleJ",
 
-  has_website: "si",
-  website_year: "2020",
-  website_updated_regularly: "no",
-  website_seo_optimised: "non_so",
-  website_page_count: "8",
-  website_sections: ["homepage", "chi_siamo", "catalogo", "contatti"],
-  website_vendor: "Studio Pixel",
+  current_social_channels: ["instagram", "facebook", "tiktok"],
+  wants_social_management: true,
+  social_management_goals:
+    "Crescita follower targetizzati su Milano + lead per appuntamenti boutique.",
 
-  social_active: "si",
-  social_channels: ["instagram", "facebook", "tiktok"],
-  social_frequency: "1_settimana",
-  social_managed_by: "Team interno (Giulia)",
-  social_vendor: null,
-  social_tone: "amichevole",
+  wants_short_videos: true,
+  wants_long_videos: false,
+  wants_cinematic_videos: true,
+  wants_photography: true,
+  video_photo_notes:
+    "Teaser cinematografico per la collezione FW26 + serie di 6 reels 15-30s + shooting prodotto e team.",
 
-  gmb_active: "si",
-  gmb_up_to_date: "no",
-  gmb_has_reviews: "si",
+  wants_graphic_design: true,
+  graphic_design_items: ["catalogo", "biglietti_visita", "post_social", "packaging"],
 
-  newsletter_active: "no",
-  newsletter_frequency: null,
-  newsletter_vendor: null,
-  newsletter_platform: null,
-  whatsapp_active: "si",
-  whatsapp_frequency: "1_mese",
+  wants_ads_management: true,
+  ads_platforms: ["meta", "google", "tiktok"],
+  ads_monthly_budget: "1500_3000",
+  ads_previous_experience: true,
 
-  online_ads_active: "si",
-  online_ads_channels: ["google", "instagram", "facebook"],
-  online_ads_vendor: "Adwerx Srl",
-  offline_ads_active: "in_arrivo",
-  offline_ads_channels: ["eventi", "volantini"],
-  offline_ads_vendor: null,
-
-  project_type: [
-    "cinematic_video",
-    "reels",
-    "youtube",
-    "photography",
-    "website",
-    "social_management",
-  ],
-  services_brand: ["brand_analysis", "coordinated_image", "team_photoshoot"],
-  services_social: [
-    "social_strategy",
-    "editorial_plan",
-    "studio_content",
-    "fb_ig_management",
-    "tiktok_management",
-    "monthly_reporting",
-  ],
-  services_ads: ["ads_strategy", "meta_ads", "google_ads", "ads_reporting"],
-  services_web: [
-    "custom_coded_website",
-    "seo",
-    "accessibility",
-    "newsletter_setup",
-  ],
   pain_points: [
     "no_professional_content",
-    "outdated_gmb",
     "communication_hard",
     "cannot_reach_younger_audience",
   ],
@@ -121,26 +80,7 @@ const mock: Client = {
     "Vogliamo posizionarci come boutique di alta gamma con un linguaggio cinematografico. Obiettivo: lanciare la nuova collezione FW26 con un teaser cinematografico, una serie di reels e un nuovo sito custom ottimizzato per Core Web Vitals e accessibilità.",
   budget_range: "2500_5000",
   timeline: "standard",
-
-  video_style: "cinematic",
-  video_duration: "60-90 sec teaser + 6 reels da 15-30 sec",
-  location_preference: "Boutique + Studio + Esterni Milano",
-  talent_needed: true,
-  equipment_notes:
-    "Preferenza per cinepresa cinema (RED / Sony Venice). Audio in presa diretta dove possibile.",
-
-  website_type: "e-commerce",
-  website_features: [
-    "cms",
-    "payments",
-    "analytics",
-    "seo",
-    "multilingual",
-    "accessibility",
-    "performance",
-  ],
-  hosting_preference: "Vercel + Sanity headless CMS",
-  domain_name: "boutiqueaurora.it",
+  retainer_contract_months: 6,
 
   target_audience:
     "Donne 30-55, residenti tra Milano, Como e Bergamo. Alto potere d'acquisto, sensibili al lusso accessibile e a una narrazione brand emozionale.",
@@ -151,7 +91,21 @@ const mock: Client = {
   assigned_to: null,
 }
 
-const { doc, fileName } = buildClientPDF(mock)
+const lineBilling = {
+  ...DEFAULT_SERVICE_LINE_BILLING,
+  video_reels: "monthly" as const,
+  video_longform: "monthly" as const,
+  video_cinematic: "monthly" as const,
+  photography: "monthly" as const,
+  graphic_design: "monthly" as const,
+  ads_setup: "monthly" as const,
+}
+
+const { doc, fileName } = buildClientPDF(mock, {
+  mode: "proposal",
+  pricing: DEFAULT_SERVICE_PRICING,
+  lineBilling,
+})
 const arrayBuffer = (doc as unknown as { output: (t: string) => ArrayBuffer }).output(
   "arraybuffer",
 )

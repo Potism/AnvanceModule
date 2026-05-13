@@ -1,10 +1,14 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import { Client } from "@/lib/types"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
+import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
+import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   Dialog,
@@ -12,52 +16,109 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { 
-  Building2, 
-  User, 
-  MapPin, 
-  Briefcase, 
-  Palette, 
-  Globe, 
+import {
+  Building2,
+  User,
+  MapPin,
+  Briefcase,
+  Palette,
+  Globe,
   Video,
   Mail,
   Phone,
   Calendar,
   FileDown,
-  ExternalLink
+  FileText,
+  ExternalLink,
+  Pencil,
+  Loader2,
 } from "lucide-react"
 import { format } from "date-fns"
 import { it, enUS } from "date-fns/locale"
 import { generateClientPDF } from "@/lib/pdf-generator"
 import { useLanguage } from "@/lib/language-context"
+import { createClient } from "@/lib/supabase/client"
+import { toast } from "sonner"
+import { loadServicePricing, loadServiceLineBilling } from "@/lib/service-pricing"
 
 interface ClientDetailModalProps {
   client: Client | null
   onClose: () => void
   onStatusChange: (status: Client["status"]) => void
+  onClientUpdated?: (client: Client) => void
 }
 
-export function ClientDetailModal({ client, onClose, onStatusChange }: ClientDetailModalProps) {
+function deriveServiceTypes(c: Client): string[] {
+  if (c.project_type && c.project_type.length > 0) return c.project_type
+  const out: string[] = []
+  if (c.wants_website) out.push("website")
+  if (c.wants_new_logo) out.push("branding")
+  if (c.wants_social_management) out.push("social_management")
+  if (c.wants_short_videos) out.push("reels")
+  if (c.wants_long_videos) out.push("youtube")
+  if (c.wants_cinematic_videos) out.push("cinematic_video")
+  if (c.wants_photography) out.push("photography")
+  if (c.wants_ads_management) out.push("ads")
+  return out
+}
+
+export function ClientDetailModal({
+  client,
+  onClose,
+  onStatusChange,
+  onClientUpdated,
+}: ClientDetailModalProps) {
   const { t, language } = useLanguage()
-  
+  const [isEditing, setIsEditing] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [draft, setDraft] = useState({
+    company_name: "",
+    contact_name: "",
+    email: "",
+    project_description: "",
+    notes: "",
+  })
+
+  useEffect(() => {
+    if (!client) return
+    setDraft({
+      company_name: client.company_name ?? "",
+      contact_name: client.contact_name ?? "",
+      email: client.email ?? "",
+      project_description: client.project_description ?? "",
+      notes: client.notes ?? "",
+    })
+    setIsEditing(false)
+  }, [client])
+
+  const cancelEdit = () => {
+    if (!client) return
+    setDraft({
+      company_name: client.company_name ?? "",
+      contact_name: client.contact_name ?? "",
+      email: client.email ?? "",
+      project_description: client.project_description ?? "",
+      notes: client.notes ?? "",
+    })
+    setIsEditing(false)
+  }
+
   if (!client) return null
 
-  const STATUS_OPTIONS = [
-    { value: 'new', label: t("status.new") },
-    { value: 'contacted', label: t("status.contacted") },
-    { value: 'in_progress', label: t("status.in_progress") },
-    { value: 'completed', label: t("status.completed") },
-    { value: 'archived', label: t("status.archived") },
-  ]
+  const hasVideoPhoto =
+    client.project_type?.some((x) =>
+      ["cinematic_video", "reels", "youtube", "photography"].includes(x),
+    ) ||
+    !!(
+      client.wants_short_videos ||
+      client.wants_long_videos ||
+      client.wants_cinematic_videos ||
+      client.wants_photography
+    )
 
-  const hasVideoPhoto = client.project_type?.some(t => 
-    ["cinematic_video", "reels", "youtube", "photography"].includes(t)
-  )
-  const hasWebsite = client.project_type?.includes("website")
+  const hasWebsite = client.project_type?.includes("website") || !!client.wants_website
 
-  const getProjectTypeLabel = (type: string) => {
-    return t(`projectType.${type}`)
-  }
+  const getProjectTypeLabel = (type: string) => t(`projectType.${type}`)
 
   const getBudgetLabel = (value: string | null) => {
     if (!value) return "—"
@@ -69,69 +130,241 @@ export function ClientDetailModal({ client, onClose, onStatusChange }: ClientDet
     return t(`timeline.${value}`)
   }
 
-  const getVideoStyleLabel = (value: string | null) => {
+  const getVideoStyleLabel = (value: string | null | undefined) => {
     if (!value) return "—"
     return t(`videoStyle.${value}`)
   }
 
-  const getWebsiteTypeLabel = (value: string | null) => {
+  const getWebsiteTypeLabel = (value: string | null | undefined) => {
     if (!value) return "—"
     return t(`websiteType.${value}`)
   }
+
+  const yn = (v: boolean | null | undefined) =>
+    v === true ? (language === "it" ? "Sì" : "Yes") : v === false ? (language === "it" ? "No" : "No") : "—"
+
+  const saveEdits = async () => {
+    setSaving(true)
+    try {
+      const supabase = createClient()
+      const { error } = await supabase
+        .from("clients")
+        .update({
+          company_name: draft.company_name.trim(),
+          contact_name: draft.contact_name.trim(),
+          email: draft.email.trim(),
+          project_description: draft.project_description.trim() || null,
+          notes: draft.notes.trim() || null,
+        })
+        .eq("id", client.id)
+
+      if (error) throw error
+
+      const updated: Client = {
+        ...client,
+        ...draft,
+        project_description: draft.project_description.trim() || null,
+        notes: draft.notes.trim() || null,
+      }
+      onClientUpdated?.(updated)
+      toast.success(t("admin.saved"))
+      setIsEditing(false)
+    } catch (e) {
+      console.error(e)
+      toast.error(t("admin.saveError"))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const svcRows: { label: string; value: string }[] = [
+    { label: "Sito web", value: yn(client.wants_website) },
+    {
+      label: "Piattaforma",
+      value:
+        client.website_platform === "wordpress"
+          ? "WordPress"
+          : client.website_platform === "custom_code"
+            ? "Custom"
+            : client.website_platform === "undecided"
+              ? "—"
+              : "—",
+    },
+    { label: "Logo / identità", value: yn(client.wants_new_logo) },
+    { label: "Social management", value: yn(client.wants_social_management) },
+    { label: "Reels / short", value: yn(client.wants_short_videos) },
+    { label: "Long-form", value: yn(client.wants_long_videos) },
+    { label: "Video cinematic", value: yn(client.wants_cinematic_videos) },
+    { label: "Fotografia", value: yn(client.wants_photography) },
+    { label: "Graphic design", value: yn(client.wants_graphic_design) },
+    { label: "Ads", value: yn(client.wants_ads_management) },
+  ]
 
   return (
     <Dialog open={!!client} onOpenChange={() => onClose()}>
       <DialogContent className="max-w-3xl max-h-[90vh] p-0 bg-card border-border">
         <DialogHeader className="p-4 sm:p-6 pb-3 sm:pb-4 border-b border-border bg-secondary">
-          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
-            <div className="flex items-center gap-3 sm:gap-4">
-              <div className="w-10 h-10 sm:w-14 sm:h-14 rounded-lg sm:rounded-xl bg-foreground/10 flex items-center justify-center flex-shrink-0">
-                <Building2 className="h-5 w-5 sm:h-7 sm:w-7 text-foreground" />
-              </div>
-              <div>
-                <DialogTitle className="text-base sm:text-xl font-semibold text-foreground">
-                  {client.company_name}
-                </DialogTitle>
-                <p className="text-xs sm:text-sm text-muted-foreground">{client.business_type || (language === "it" ? "Nessun tipo di attività" : "No business type")}</p>
-                <div className="flex items-center gap-1.5 sm:gap-2 mt-1.5 sm:mt-2 text-xs sm:text-sm text-muted-foreground">
-                  <Calendar className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
-                  <span>
-                    {language === "it" ? "Inviato il" : "Submitted"} {format(new Date(client.created_at), "d MMMM yyyy", { locale: language === "it" ? it : enUS })}
-                  </span>
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+              <div className="flex items-center gap-3 sm:gap-4">
+                <div className="w-10 h-10 sm:w-14 sm:h-14 rounded-lg sm:rounded-xl bg-foreground/10 flex items-center justify-center flex-shrink-0">
+                  <Building2 className="h-5 w-5 sm:h-7 sm:w-7 text-foreground" />
+                </div>
+                <div>
+                  <DialogTitle className="text-base sm:text-xl font-semibold text-foreground">
+                    {isEditing ? (
+                      <Input
+                        value={draft.company_name}
+                        onChange={(e) => setDraft((d) => ({ ...d, company_name: e.target.value }))}
+                        className="mt-1 max-w-md bg-background"
+                      />
+                    ) : (
+                      client.company_name
+                    )}
+                  </DialogTitle>
+                  <p className="text-xs sm:text-sm text-muted-foreground">
+                    {client.business_type || (language === "it" ? "Nessun tipo di attività" : "No business type")}
+                  </p>
+                  <div className="flex items-center gap-1.5 sm:gap-2 mt-1.5 sm:mt-2 text-xs sm:text-sm text-muted-foreground">
+                    <Calendar className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+                    <span>
+                      {language === "it" ? "Inviato il" : "Submitted"}{" "}
+                      {format(new Date(client.created_at), "d MMMM yyyy", {
+                        locale: language === "it" ? it : enUS,
+                      })}
+                    </span>
+                  </div>
                 </div>
               </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Select value={client.status} onValueChange={(v) => onStatusChange(v as Client["status"])}>
+                  <SelectTrigger className="w-28 sm:w-36 h-8 sm:h-10 text-xs sm:text-sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {["new", "contacted", "in_progress", "completed", "archived"].map((s) => (
+                      <SelectItem key={s} value={s}>
+                        {t(`status.${s}`)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsEditing((e) => !e)}
+                  className="gap-1.5"
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                  {t("admin.editBrief")}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => generateClientPDF(client, { mode: "brief" })}
+                  className="gap-1.5"
+                >
+                  <FileDown className="h-3.5 w-3.5" />
+                  {t("admin.downloadBriefPdf")}
+                </Button>
+                <Button
+                  type="button"
+                  variant="default"
+                  size="sm"
+                  onClick={() =>
+                    generateClientPDF(client, {
+                      mode: "proposal",
+                      pricing: loadServicePricing(),
+                      lineBilling: loadServiceLineBilling(),
+                    })
+                  }
+                  className="gap-1.5"
+                >
+                  <FileText className="h-3.5 w-3.5" />
+                  {t("admin.downloadProposalPdf")}
+                </Button>
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              <Select value={client.status} onValueChange={(v) => onStatusChange(v as Client["status"])}>
-                <SelectTrigger className="w-28 sm:w-36 h-8 sm:h-10 text-xs sm:text-sm">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {STATUS_OPTIONS.map(status => (
-                    <SelectItem key={status.value} value={status.value}>
-                      <div className="flex items-center gap-2">
-                        <span className="w-2 h-2 rounded-full bg-foreground" />
-                        {status.label}
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Button 
-                variant="outline"
-                onClick={() => generateClientPDF(client)}
-                className="gap-1.5 sm:gap-2 h-8 sm:h-10 text-xs sm:text-sm px-2 sm:px-3"
-              >
-                <FileDown className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                PDF
-              </Button>
-            </div>
+            {isEditing && (
+              <div className="flex justify-end gap-2 pt-1 border-t border-border/60">
+                <Button type="button" variant="ghost" size="sm" onClick={cancelEdit}>
+                  {t("admin.discardEdits")}
+                </Button>
+                <Button type="button" size="sm" disabled={saving} onClick={saveEdits} className="gap-1.5">
+                  {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+                  {t("admin.saveChanges")}
+                </Button>
+              </div>
+            )}
           </div>
         </DialogHeader>
 
         <ScrollArea className="max-h-[calc(90vh-180px)]">
           <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
-            {/* Contact Information */}
+            {isEditing && (
+              <section className="p-4 rounded-lg border border-border bg-secondary/50 space-y-3">
+                <div className="grid sm:grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">{t("contact.name")}</Label>
+                    <Input
+                      value={draft.contact_name}
+                      onChange={(e) => setDraft((d) => ({ ...d, contact_name: e.target.value }))}
+                      className="bg-background"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">{t("contact.email")}</Label>
+                    <Input
+                      type="email"
+                      value={draft.email}
+                      onChange={(e) => setDraft((d) => ({ ...d, email: e.target.value }))}
+                      className="bg-background"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">{t("project.description")}</Label>
+                  <Textarea
+                    rows={3}
+                    value={draft.project_description}
+                    onChange={(e) => setDraft((d) => ({ ...d, project_description: e.target.value }))}
+                    className="bg-background resize-none text-sm"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">{t("admin.notesInternal")}</Label>
+                  <Textarea
+                    rows={2}
+                    placeholder={t("admin.notesPlaceholder")}
+                    value={draft.notes}
+                    onChange={(e) => setDraft((d) => ({ ...d, notes: e.target.value }))}
+                    className="bg-background resize-none text-sm"
+                  />
+                </div>
+              </section>
+            )}
+
+            <section>
+              <div className="flex items-center gap-2 mb-3 sm:mb-4">
+                <Briefcase className="h-4 w-4 sm:h-5 sm:w-5 text-foreground" />
+                <h3 className="font-semibold text-sm sm:text-base text-foreground">
+                  {t("admin.servicesFromBrief")}
+                </h3>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {svcRows.map((row) => (
+                  <div key={row.label} className="p-2.5 rounded-lg bg-secondary text-xs">
+                    <p className="text-muted-foreground text-[10px]">{row.label}</p>
+                    <p className="font-medium">{row.value}</p>
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            <Separator />
+
             <section>
               <div className="flex items-center gap-2 mb-3 sm:mb-4">
                 <User className="h-4 w-4 sm:h-5 sm:w-5 text-foreground" />
@@ -148,7 +381,10 @@ export function ClientDetailModal({ client, onClose, onStatusChange }: ClientDet
                 </div>
                 <div>
                   <p className="text-[10px] sm:text-xs text-muted-foreground">{t("contact.email")}</p>
-                  <a href={`mailto:${client.email}`} className="font-medium text-xs sm:text-sm text-foreground hover:underline flex items-center gap-1">
+                  <a
+                    href={`mailto:${client.email}`}
+                    className="font-medium text-xs sm:text-sm text-foreground hover:underline flex items-center gap-1"
+                  >
                     <Mail className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
                     <span className="truncate">{client.email}</span>
                   </a>
@@ -156,7 +392,10 @@ export function ClientDetailModal({ client, onClose, onStatusChange }: ClientDet
                 <div>
                   <p className="text-[10px] sm:text-xs text-muted-foreground">{t("contact.phone")}</p>
                   {client.phone ? (
-                    <a href={`tel:${client.phone}`} className="font-medium text-xs sm:text-sm text-foreground hover:underline flex items-center gap-1">
+                    <a
+                      href={`tel:${client.phone}`}
+                      className="font-medium text-xs sm:text-sm text-foreground hover:underline flex items-center gap-1"
+                    >
                       <Phone className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
                       {client.phone}
                     </a>
@@ -167,7 +406,12 @@ export function ClientDetailModal({ client, onClose, onStatusChange }: ClientDet
                 {client.website && (
                   <div className="col-span-2">
                     <p className="text-[10px] sm:text-xs text-muted-foreground">{t("contact.website")}</p>
-                    <a href={client.website} target="_blank" rel="noopener noreferrer" className="font-medium text-xs sm:text-sm text-foreground hover:underline flex items-center gap-1">
+                    <a
+                      href={client.website}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-medium text-xs sm:text-sm text-foreground hover:underline flex items-center gap-1"
+                    >
                       <ExternalLink className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
                       <span className="truncate">{client.website}</span>
                     </a>
@@ -178,7 +422,6 @@ export function ClientDetailModal({ client, onClose, onStatusChange }: ClientDet
 
             <Separator />
 
-            {/* Address */}
             <section>
               <div className="flex items-center gap-2 mb-3 sm:mb-4">
                 <MapPin className="h-4 w-4 sm:h-5 sm:w-5 text-foreground" />
@@ -188,14 +431,14 @@ export function ClientDetailModal({ client, onClose, onStatusChange }: ClientDet
                 <p className="font-medium text-xs sm:text-sm">
                   {[client.address, client.city, client.province, client.postal_code, client.country]
                     .filter(Boolean)
-                    .join(", ") || (language === "it" ? "Nessun indirizzo fornito" : "No address provided")}
+                    .join(", ") ||
+                    (language === "it" ? "Nessun indirizzo fornito" : "No address provided")}
                 </p>
               </div>
             </section>
 
             <Separator />
 
-            {/* Project Requirements */}
             <section>
               <div className="flex items-center gap-2 mb-3 sm:mb-4">
                 <Briefcase className="h-4 w-4 sm:h-5 sm:w-5 text-foreground" />
@@ -205,11 +448,15 @@ export function ClientDetailModal({ client, onClose, onStatusChange }: ClientDet
                 <div className="p-3 sm:p-4 rounded-lg bg-secondary">
                   <p className="text-[10px] sm:text-xs text-muted-foreground mb-2">{t("project.services")}</p>
                   <div className="flex flex-wrap gap-1.5 sm:gap-2">
-                    {client.project_type?.map(type => (
-                      <Badge key={type} className="bg-foreground/10 text-foreground border-0 text-[10px] sm:text-xs">
-                        {getProjectTypeLabel(type)}
-                      </Badge>
-                    )) || <span className="text-muted-foreground text-xs sm:text-sm">—</span>}
+                    {deriveServiceTypes(client).length ? (
+                      deriveServiceTypes(client).map((type) => (
+                        <Badge key={type} className="bg-foreground/10 text-foreground border-0 text-[10px] sm:text-xs">
+                          {getProjectTypeLabel(type)}
+                        </Badge>
+                      ))
+                    ) : (
+                      <span className="text-muted-foreground text-xs sm:text-sm">—</span>
+                    )}
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-3 sm:gap-4">
@@ -224,14 +471,17 @@ export function ClientDetailModal({ client, onClose, onStatusChange }: ClientDet
                 </div>
                 {client.project_description && (
                   <div className="p-3 sm:p-4 rounded-lg bg-secondary">
-                    <p className="text-[10px] sm:text-xs text-muted-foreground mb-1.5 sm:mb-2">{t("project.description")}</p>
-                    <p className="text-foreground text-xs sm:text-sm whitespace-pre-wrap">{client.project_description}</p>
+                    <p className="text-[10px] sm:text-xs text-muted-foreground mb-1.5 sm:mb-2">
+                      {t("project.description")}
+                    </p>
+                    <p className="text-foreground text-xs sm:text-sm whitespace-pre-wrap">
+                      {client.project_description}
+                    </p>
                   </div>
                 )}
               </div>
             </section>
 
-            {/* Video/Photo Details */}
             {hasVideoPhoto && (
               <>
                 <Separator />
@@ -255,11 +505,15 @@ export function ClientDetailModal({ client, onClose, onStatusChange }: ClientDet
                     </div>
                     <div className="p-3 sm:p-4 rounded-lg bg-secondary">
                       <p className="text-[10px] sm:text-xs text-muted-foreground">{t("videoPhoto.talent")}</p>
-                      <p className="font-medium text-xs sm:text-sm">{client.talent_needed ? (language === "it" ? "Sì" : "Yes") : "No"}</p>
+                      <p className="font-medium text-xs sm:text-sm">
+                        {client.talent_needed ? (language === "it" ? "Sì" : "Yes") : "No"}
+                      </p>
                     </div>
                     {client.equipment_notes && (
                       <div className="col-span-2 p-3 sm:p-4 rounded-lg bg-secondary">
-                        <p className="text-[10px] sm:text-xs text-muted-foreground mb-1.5 sm:mb-2">{t("videoPhoto.equipment")}</p>
+                        <p className="text-[10px] sm:text-xs text-muted-foreground mb-1.5 sm:mb-2">
+                          {t("videoPhoto.equipment")}
+                        </p>
                         <p className="text-foreground text-xs sm:text-sm">{client.equipment_notes}</p>
                       </div>
                     )}
@@ -268,7 +522,6 @@ export function ClientDetailModal({ client, onClose, onStatusChange }: ClientDet
               </>
             )}
 
-            {/* Website Details */}
             {hasWebsite && (
               <>
                 <Separator />
@@ -292,7 +545,9 @@ export function ClientDetailModal({ client, onClose, onStatusChange }: ClientDet
                     </div>
                     <div className="p-3 sm:p-4 rounded-lg bg-secondary">
                       <p className="text-[10px] sm:text-xs text-muted-foreground">{t("website.features")}</p>
-                      <p className="font-medium text-xs sm:text-sm">{client.website_features?.map(f => t(`websiteFeature.${f}`)).join(", ") || "—"}</p>
+                      <p className="font-medium text-xs sm:text-sm">
+                        {client.website_features?.map((f) => t(`websiteFeature.${f}`)).join(", ") || "—"}
+                      </p>
                     </div>
                   </div>
                 </section>
@@ -301,7 +556,6 @@ export function ClientDetailModal({ client, onClose, onStatusChange }: ClientDet
 
             <Separator />
 
-            {/* Brand Information */}
             <section>
               <div className="flex items-center gap-2 mb-3 sm:mb-4">
                 <Palette className="h-4 w-4 sm:h-5 sm:w-5 text-foreground" />
@@ -310,7 +564,7 @@ export function ClientDetailModal({ client, onClose, onStatusChange }: ClientDet
               <div className="grid grid-cols-2 gap-3 sm:gap-4">
                 <div className="p-3 sm:p-4 rounded-lg bg-secondary">
                   <p className="text-[10px] sm:text-xs text-muted-foreground">{t("brand.colors")}</p>
-                  <p className="font-medium text-xs sm:text-sm">{client.brand_colors || "—"}</p>
+                  <p className="font-medium text-xs sm:text-sm">{client.brand_colors || client.logo_palette_preference || "—"}</p>
                 </div>
                 <div className="p-3 sm:p-4 rounded-lg bg-secondary">
                   <p className="text-[10px] sm:text-xs text-muted-foreground">{t("brand.fonts")}</p>
@@ -319,7 +573,12 @@ export function ClientDetailModal({ client, onClose, onStatusChange }: ClientDet
                 {client.brand_guidelines_url && (
                   <div className="col-span-2 p-3 sm:p-4 rounded-lg bg-secondary">
                     <p className="text-[10px] sm:text-xs text-muted-foreground">{t("brand.guidelines")}</p>
-                    <a href={client.brand_guidelines_url} target="_blank" rel="noopener noreferrer" className="font-medium text-xs sm:text-sm text-foreground hover:underline flex items-center gap-1">
+                    <a
+                      href={client.brand_guidelines_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-medium text-xs sm:text-sm text-foreground hover:underline flex items-center gap-1"
+                    >
                       <ExternalLink className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
                       <span className="truncate">{client.brand_guidelines_url}</span>
                     </a>
@@ -333,14 +592,15 @@ export function ClientDetailModal({ client, onClose, onStatusChange }: ClientDet
                 )}
                 {client.competitors && (
                   <div className="col-span-2 p-3 sm:p-4 rounded-lg bg-secondary">
-                    <p className="text-[10px] sm:text-xs text-muted-foreground mb-1.5 sm:mb-2">{t("brand.competitors")}</p>
+                    <p className="text-[10px] sm:text-xs text-muted-foreground mb-1.5 sm:mb-2">
+                      {t("brand.competitors")}
+                    </p>
                     <p className="text-foreground text-xs sm:text-sm">{client.competitors}</p>
                   </div>
                 )}
               </div>
             </section>
 
-            {/* Company Details */}
             {(client.vat_number || client.tax_code) && (
               <>
                 <Separator />
@@ -359,6 +619,16 @@ export function ClientDetailModal({ client, onClose, onStatusChange }: ClientDet
                       <p className="font-medium text-xs sm:text-sm font-mono">{client.tax_code || "—"}</p>
                     </div>
                   </div>
+                </section>
+              </>
+            )}
+
+            {client.notes && !isEditing && (
+              <>
+                <Separator />
+                <section>
+                  <h3 className="font-semibold text-sm mb-2">{t("admin.notesInternal")}</h3>
+                  <p className="text-xs sm:text-sm text-muted-foreground whitespace-pre-wrap">{client.notes}</p>
                 </section>
               </>
             )}

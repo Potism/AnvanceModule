@@ -11,14 +11,7 @@ import {
   CompanyInfoStep,
   ContactInfoStep,
   AddressStep,
-  StoreProfileStep,
-  IdentityStep,
-  DigitalPresenceStep,
-  MarketingStep,
-  RequestedServicesStep,
-  VideoPhotoStep,
-  WebsiteStep,
-  BrandInfoStep,
+  ServicesStep,
   FinalStep,
 } from "./form-steps"
 import {
@@ -36,8 +29,7 @@ import { toast } from "sonner"
 import { createClient } from "@/lib/supabase/client"
 import { useLanguage } from "@/lib/language-context"
 import { generateClientPDF } from "@/lib/pdf-generator"
-
-const VIDEO_TYPES = ["cinematic_video", "reels", "youtube", "photography"]
+import { loadServicePricing, projectTypeFromWantsFields, loadServiceLineBilling } from "@/lib/service-pricing"
 
 export function ClientForm() {
   const { t } = useLanguage()
@@ -69,115 +61,56 @@ export function ClientForm() {
       province: "",
       country: "Italia",
 
-      employees_count: "",
-      store_location: null,
-      surface_sqm: "",
-      annual_revenue: "",
-      customer_flow: [],
-      flagship_product: "",
-      local_competitors: "",
+      // Direct service requests
+      wants_website: null,
+      website_platform: null,
+      website_purpose: null,
+      current_website_status: null,
 
-      has_logo: null,
-      logo_year: "",
-      brand_colors: "",
-      brand_fonts: "",
-      brand_guidelines_url: "",
-      promo_materials: [],
-      materials_coordinated: null,
-      signage_coordinated: null,
+      wants_new_logo: null,
+      logo_style_preference: "",
+      logo_palette_preference: "",
+      brand_references: "",
 
-      has_website: null,
-      website_year: "",
-      website_updated_regularly: null,
-      website_seo_optimised: null,
-      website_page_count: "",
-      website_sections: [],
-      website_vendor: "",
+      current_social_channels: [],
+      wants_social_management: null,
+      social_management_goals: "",
 
-      social_active: null,
-      social_channels: [],
-      social_frequency: null,
-      social_managed_by: "",
-      social_vendor: "",
-      social_tone: null,
+      wants_short_videos: null,
+      wants_long_videos: null,
+      wants_cinematic_videos: null,
+      wants_photography: null,
+      video_photo_notes: "",
 
-      gmb_active: null,
-      gmb_up_to_date: null,
-      gmb_has_reviews: null,
+      wants_graphic_design: null,
+      graphic_design_items: [],
 
-      newsletter_active: null,
-      newsletter_frequency: null,
-      newsletter_vendor: "",
-      newsletter_platform: "",
-      whatsapp_active: null,
-      whatsapp_frequency: null,
+      wants_ads_management: null,
+      ads_platforms: [],
+      ads_monthly_budget: null,
+      ads_previous_experience: null,
 
-      online_ads_active: null,
-      online_ads_channels: [],
-      online_ads_vendor: "",
-      offline_ads_active: null,
-      offline_ads_channels: [],
-      offline_ads_vendor: "",
-
-      project_type: [],
-      services_brand: [],
-      services_social: [],
-      services_ads: [],
-      services_web: [],
+      // Final brief
       pain_points: [],
       project_description: "",
       budget_range: "",
       timeline: "",
-
-      video_style: "",
-      video_duration: "",
-      location_preference: "",
-      talent_needed: false,
-      equipment_notes: "",
-
-      website_type: "",
-      website_features: [],
-      hosting_preference: "",
-      domain_name: "",
-
+      retainer_contract_months: 1,
       target_audience: "",
       competitors: "",
     },
   })
-
-  const projectTypes = form.watch("project_type") || []
-  const hasVideoNeeds = projectTypes.some((p) => VIDEO_TYPES.includes(p))
-  const hasWebsiteNeeds = projectTypes.includes("website")
 
   const STEPS = [
     { id: "agent", title: t("step.agent"), component: AgentInfoStep, optional: true },
     { id: "company", title: t("step.company"), component: CompanyInfoStep, optional: false },
     { id: "contact", title: t("step.contact"), component: ContactInfoStep, optional: false },
     { id: "address", title: t("step.address"), component: AddressStep, optional: true },
-    { id: "store", title: t("step.store"), component: StoreProfileStep, optional: true },
-    { id: "identity", title: t("step.identity"), component: IdentityStep, optional: true },
-    { id: "digital", title: t("step.digital"), component: DigitalPresenceStep, optional: true },
-    { id: "marketing", title: t("step.marketing"), component: MarketingStep, optional: true },
-    { id: "services", title: t("step.services"), component: RequestedServicesStep, optional: true },
-    {
-      id: "video",
-      title: t("step.video"),
-      component: VideoPhotoStep,
-      visible: hasVideoNeeds,
-      optional: true,
-    },
-    {
-      id: "website",
-      title: t("step.website"),
-      component: WebsiteStep,
-      visible: hasWebsiteNeeds,
-      optional: true,
-    },
-    { id: "brand", title: t("step.brand"), component: BrandInfoStep, optional: true },
+    { id: "services", title: t("step.services"), component: ServicesStep, optional: false },
     { id: "summary", title: t("step.summary"), component: FinalStep, optional: false },
   ]
 
-  const activeSteps = STEPS.filter((s) => s.visible !== false)
+  const activeSteps = STEPS
   const safeStepIndex = Math.min(currentStep, activeSteps.length - 1)
   const progress = ((safeStepIndex + 1) / activeSteps.length) * 100
   const currentStepDef = activeSteps[safeStepIndex]
@@ -235,7 +168,7 @@ export function ClientForm() {
   /**
    * Normalise the form payload before sending to Supabase.
    * - Empty strings become `null` so they don't violate CHECK constraints
-   *   for enum-like columns (`store_location`, `has_website`, etc.).
+   *   for enum-like columns.
    * - Empty arrays stay as `[]` (Postgres `text[] default '{}'`).
    */
   const normalizePayload = (data: ClientFormData): Record<string, unknown> => {
@@ -250,11 +183,13 @@ export function ClientForm() {
     return out
   }
 
+  /** Allinea `project_type` ai servizi con Sì — utile al PDF preventivo e ai record legacy. */
   const onSubmit = async (data: ClientFormData) => {
     setIsSubmitting(true)
     try {
       const supabase = createClient()
       const payload = normalizePayload(data)
+      payload.project_type = projectTypeFromWantsFields(data)
       const { error } = await supabase.from("clients").insert([payload])
       if (error) throw error
 
@@ -266,7 +201,7 @@ export function ClientForm() {
       console.error("Error submitting form:", err)
       if (err?.code === "PGRST204" || /column .* of '?clients'? in the schema cache/i.test(err?.message || "")) {
         toast.error(
-          "Schema Supabase non aggiornato. Esegui supabase/migrations/20260513_patch_clients.sql nel SQL editor di Supabase.",
+          "Schema Supabase non aggiornato. Esegui supabase/migrations/20260514_simplify_clients.sql nel SQL editor di Supabase.",
           { duration: 8000 },
         )
       } else {
@@ -275,6 +210,22 @@ export function ClientForm() {
     } finally {
       setIsSubmitting(false)
     }
+  }
+
+  /**
+   * Never run the real brief submit from the native `<form onSubmit>`.
+   * Browsers can still fire `submit` (e.g. implicit submission) in edge
+   * cases; wiring RHF only via an explicit `type="button"` click removes
+   * that class of bugs entirely.
+   */
+  const blockNativeSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+  }
+
+  const submitBrief = () => {
+    const idx = Math.min(currentStep, activeSteps.length - 1)
+    if (activeSteps[idx]?.id !== "summary") return
+    void form.handleSubmit(onSubmit)()
   }
 
   if (isSubmitted) {
@@ -293,16 +244,21 @@ export function ClientForm() {
           <div className="flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-3">
             {submittedData && (
               <Button
+                type="button"
                 onClick={() =>
-                  generateClientPDF({
-                    id: "draft",
-                    created_at: new Date().toISOString(),
-                    updated_at: new Date().toISOString(),
-                    status: "new",
-                    notes: null,
-                    assigned_to: null,
-                    ...submittedData,
-                  })
+                  generateClientPDF(
+                    {
+                      id: "draft",
+                      created_at: new Date().toISOString(),
+                      updated_at: new Date().toISOString(),
+                      status: "new",
+                      notes: null,
+                      assigned_to: null,
+                      ...submittedData,
+                      project_type: projectTypeFromWantsFields(submittedData),
+                    },
+                    { mode: "proposal", pricing: loadServicePricing(), lineBilling: loadServiceLineBilling() },
+                  )
                 }
                 className="gap-2 text-sm"
               >
@@ -311,6 +267,7 @@ export function ClientForm() {
               </Button>
             )}
             <Button
+              type="button"
               onClick={() => {
                 setIsSubmitted(false)
                 setSubmittedData(null)
@@ -380,7 +337,7 @@ export function ClientForm() {
 
       {/* Form Content */}
       <CardContent className="p-4 sm:p-6 lg:p-8">
-        <form onSubmit={form.handleSubmit(onSubmit)}>
+        <form onSubmit={blockNativeSubmit}>
           <div className="min-h-[360px] sm:min-h-[420px] lg:min-h-[460px]">
             {CurrentStepComponent && <CurrentStepComponent form={form} />}
           </div>
@@ -432,8 +389,9 @@ export function ClientForm() {
 
               {isSummary ? (
                 <Button
-                  type="submit"
+                  type="button"
                   disabled={isSubmitting}
+                  onClick={submitBrief}
                   className="gap-1.5 sm:gap-2 text-xs sm:text-sm h-9 sm:h-10 px-3 sm:px-4"
                 >
                   {isSubmitting ? (
