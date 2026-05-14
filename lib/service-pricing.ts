@@ -259,6 +259,8 @@ export function buildPreventivoLines(client: Client, ctx: PreventivoBuildContext
   const pt = projectTypeList(client)
   const active: ServicePricingActive = { ...DEFAULT_SERVICE_PRICING_ACTIVE, ...pa }
   const on = (k: ListinoTariffKey) => active[k] !== false
+  const wantedOrForced = (want: boolean | null | undefined, legacy: boolean, tariffKey: ListinoTariffKey) =>
+    effectiveWant(want, legacy) || (on(tariffKey) && clampMoney(pricing[tariffKey]) > 0)
 
   if (effectiveWant(client.wants_website, pt.includes("website"))) {
     const wp = client.website_platform === "wordpress"
@@ -288,7 +290,7 @@ export function buildPreventivoLines(client: Client, ctx: PreventivoBuildContext
   }
 
   if (
-    effectiveWant(client.wants_social_management, pt.includes("social_management")) &&
+    wantedOrForced(client.wants_social_management, pt.includes("social_management"), "social_management_monthly") &&
     on("social_management_monthly")
   ) {
     const monthly = lineBilling.social_management === "monthly"
@@ -315,7 +317,7 @@ export function buildPreventivoLines(client: Client, ctx: PreventivoBuildContext
     }
   }
 
-  if (effectiveWant(client.wants_short_videos, pt.includes("reels"))) {
+  if (wantedOrForced(client.wants_short_videos, pt.includes("reels"), "video_reels_package")) {
     const monthly = lineBilling.video_reels === "monthly"
     const unit = monthly
       ? monthlyUnit(pricing.video_reels_monthly, pricing.video_reels_package)
@@ -340,7 +342,7 @@ export function buildPreventivoLines(client: Client, ctx: PreventivoBuildContext
     }
   }
 
-  if (effectiveWant(client.wants_long_videos, pt.includes("youtube"))) {
+  if (wantedOrForced(client.wants_long_videos, pt.includes("youtube"), "video_longform_package")) {
     const monthly = lineBilling.video_longform === "monthly"
     const unit = monthly
       ? monthlyUnit(pricing.video_longform_monthly, pricing.video_longform_package)
@@ -365,7 +367,7 @@ export function buildPreventivoLines(client: Client, ctx: PreventivoBuildContext
     }
   }
 
-  if (effectiveWant(client.wants_cinematic_videos, pt.includes("cinematic_video"))) {
+  if (wantedOrForced(client.wants_cinematic_videos, pt.includes("cinematic_video"), "video_cinematic_project")) {
     const monthly = lineBilling.video_cinematic === "monthly"
     const unit = monthly
       ? monthlyUnit(pricing.video_cinematic_monthly, pricing.video_cinematic_project)
@@ -390,7 +392,7 @@ export function buildPreventivoLines(client: Client, ctx: PreventivoBuildContext
     }
   }
 
-  if (effectiveWant(client.wants_photography, pt.includes("photography"))) {
+  if (wantedOrForced(client.wants_photography, pt.includes("photography"), "photography_day")) {
     const monthly = lineBilling.photography === "monthly"
     const unit = monthly
       ? monthlyUnit(pricing.photography_monthly, pricing.photography_day)
@@ -411,7 +413,8 @@ export function buildPreventivoLines(client: Client, ctx: PreventivoBuildContext
     }
   }
 
-  if (effectiveWant(client.wants_graphic_design, false)) {
+  const hasGraphicItems = (client.graphic_design_items?.length ?? 0) > 0
+  if (wantedOrForced(client.wants_graphic_design, hasGraphicItems, "graphic_design_project")) {
     const monthly = lineBilling.graphic_design === "monthly"
     if (monthly) {
       const unit = monthlyUnit(pricing.graphic_design_monthly, pricing.graphic_design_project)
@@ -446,7 +449,7 @@ export function buildPreventivoLines(client: Client, ctx: PreventivoBuildContext
     }
   }
 
-  if (effectiveWant(client.wants_ads_management, pt.includes("ads"))) {
+  if (wantedOrForced(client.wants_ads_management, pt.includes("ads"), "ads_setup_onetime")) {
     const setupMonthly = lineBilling.ads_setup === "monthly"
     const adsStart = lines.length
 

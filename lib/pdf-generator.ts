@@ -387,6 +387,15 @@ function renderPreventivoTotals(
   contractMonths: number,
 ): number {
   y = ensureSpace(doc, y, 38)
+  const w = doc.internal.pageSize.getWidth()
+  const rightX = w - PAGE_MARGIN_X
+
+  const row = (label: string, amount: string, lineH = 5) => {
+    doc.text(label, PAGE_MARGIN_X, y)
+    doc.text(amount, rightX, y, { align: "right" })
+    y += lineH
+  }
+
   doc.setFont("helvetica", "normal")
   doc.setFontSize(9)
   setText(doc, BRAND.muted)
@@ -394,58 +403,52 @@ function renderPreventivoTotals(
   if (contractMonths > 1) {
     doc.setFont("helvetica", "italic")
     const cmNote = `Durata impegno indicata nel brief: ${contractMonths} mesi — sulle voci a canone: Totale = canone mensile × ${contractMonths}.`
-    const cmW = doc.internal.pageSize.getWidth() - PAGE_MARGIN_X * 2
+    const cmW = w - PAGE_MARGIN_X * 2
     const cmLines = doc.splitTextToSize(cmNote, cmW)
     doc.text(cmLines, PAGE_MARGIN_X, y)
     y += cmLines.length * 4 + 4
     doc.setFont("helvetica", "normal")
   }
-  if (monthlyImp > 0) {
+
+  if (monthlyImp > 0 || onceImp > 0) {
     doc.setFont("helvetica", "bold")
     setText(doc, BRAND.ink)
-    doc.text(`Totale voci a canone mensile (imponibile): ${fmtEuro(monthlyImp)}`, PAGE_MARGIN_X, y)
-    y += 5
-    doc.setFont("helvetica", "normal")
-    setText(doc, BRAND.muted)
-    doc.text(`Totale una tantum / progetto (imponibile): ${fmtEuro(onceImp)}`, PAGE_MARGIN_X, y)
-    y += 5
-    const note =
-      "Le righe «Canone mensile» con quantità > 1 riflettono l’impegno su più mesi (canone unitario × mesi)."
-    const noteW = doc.internal.pageSize.getWidth() - PAGE_MARGIN_X * 2
-    const noteLines = doc.splitTextToSize(note, noteW)
-    doc.text(noteLines, PAGE_MARGIN_X, y)
-    y += noteLines.length * 4 + 6
+    if (monthlyImp > 0) row("Totale voci a canone mensile (imponibile):", fmtEuro(monthlyImp))
+    if (onceImp > 0) row("Totale una tantum / progetto (imponibile):", fmtEuro(onceImp))
+    if (monthlyImp > 0) {
+      doc.setFont("helvetica", "normal")
+      setText(doc, BRAND.muted)
+      const note =
+        "Le righe «Canone mensile» con quantità > 1 riflettono l’impegno su più mesi (canone unitario × mesi)."
+      const noteW = w - PAGE_MARGIN_X * 2
+      const noteLines = doc.splitTextToSize(note, noteW)
+      doc.text(noteLines, PAGE_MARGIN_X, y)
+      y += noteLines.length * 4 + 6
+    } else {
+      y += 2
+    }
   }
 
-  doc.text(`Imponibile complessivo: ${fmtEuro(subtotal)}`, PAGE_MARGIN_X, y)
-  y += 5
-  doc.text(`IVA (${pricing.vatPercent}%): ${fmtEuro(vat)}`, PAGE_MARGIN_X, y)
-  y += 6
+  doc.setFont("helvetica", "normal")
+  doc.setFontSize(9)
+  setText(doc, BRAND.muted)
+  row("Imponibile complessivo:", fmtEuro(subtotal))
+  row(`IVA (${pricing.vatPercent}%):`, fmtEuro(vat), 6)
+
   doc.setFont("helvetica", "bold")
   setText(doc, BRAND.ink)
   doc.setFontSize(11)
-  doc.text(`Totale documento (IVA inclusa): ${fmtEuro(grand)}`, PAGE_MARGIN_X, y)
-  y += 8
+  row("Totale documento (IVA inclusa):", fmtEuro(grand), 8)
 
   if (contractMonths === 12) {
     doc.setFont("helvetica", "normal")
     doc.setFontSize(9)
     setText(doc, BRAND.muted)
     const avgDocMonthly = Math.round((grand / 12) * 100) / 100
-    doc.text(
-      `Equiv. mensile medio (totale documento ÷ 12, IVA inclusa): ${fmtEuro(avgDocMonthly)}`,
-      PAGE_MARGIN_X,
-      y,
-    )
-    y += 5
+    row("Equiv. mensile medio (totale documento ÷ 12, IVA inclusa):", fmtEuro(avgDocMonthly))
     if (monthlyImp > 0) {
       const avgRetainerImp = Math.round((monthlyImp / 12) * 100) / 100
-      doc.text(
-        `Equiv. canone mensile medio (solo voci a canone, imponibile ÷ 12): ${fmtEuro(avgRetainerImp)}`,
-        PAGE_MARGIN_X,
-        y,
-      )
-      y += 5
+      row("Equiv. canone mensile medio (solo voci a canone, imponibile ÷ 12):", fmtEuro(avgRetainerImp))
     }
   }
 
