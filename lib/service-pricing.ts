@@ -13,29 +13,35 @@ export const PRICING_ACTIVE_STORAGE_KEY = "anvance-service-pricing-active-v1"
 export type LineBillingMode = "once" | "monthly"
 
 export type ProductionLineKey =
+  | "social_management"
   | "video_reels"
   | "video_longform"
   | "video_cinematic"
   | "photography"
   | "graphic_design"
   | "ads_setup"
+  | "ads_management"
 
 export interface ServiceLineBilling {
+  social_management: LineBillingMode
   video_reels: LineBillingMode
   video_longform: LineBillingMode
   video_cinematic: LineBillingMode
   photography: LineBillingMode
   graphic_design: LineBillingMode
   ads_setup: LineBillingMode
+  ads_management: LineBillingMode
 }
 
 export const DEFAULT_SERVICE_LINE_BILLING: ServiceLineBilling = {
+  social_management: "monthly",
   video_reels: "once",
   video_longform: "once",
   video_cinematic: "once",
   photography: "once",
   graphic_design: "once",
   ads_setup: "once",
+  ads_management: "monthly",
 }
 
 export interface ServicePricing {
@@ -285,17 +291,28 @@ export function buildPreventivoLines(client: Client, ctx: PreventivoBuildContext
     effectiveWant(client.wants_social_management, pt.includes("social_management")) &&
     on("social_management_monthly")
   ) {
+    const monthly = lineBilling.social_management === "monthly"
     const unit = pricing.social_management_monthly
-    lines.push({
-      description:
-        months > 1
-          ? `Social media management — canone mensile (impegno ${months} mesi)`
-          : "Social media management — canone mensile",
-      qty: months,
-      unitPrice: unit,
-      total: unit * months,
-      billing: "monthly",
-    })
+    if (monthly) {
+      lines.push({
+        description:
+          months > 1
+            ? `Social media management — canone mensile (impegno ${months} mesi)`
+            : "Social media management — canone mensile",
+        qty: months,
+        unitPrice: unit,
+        total: unit * months,
+        billing: "monthly",
+      })
+    } else {
+      lines.push({
+        description: "Social media management — progetto / piano (una tantum)",
+        qty: 1,
+        unitPrice: unit,
+        total: unit,
+        billing: "once",
+      })
+    }
   }
 
   if (effectiveWant(client.wants_short_videos, pt.includes("reels"))) {
@@ -464,16 +481,27 @@ export function buildPreventivoLines(client: Client, ctx: PreventivoBuildContext
 
     if (pricing.ads_management_monthly > 0 && on("ads_management_monthly")) {
       const u = pricing.ads_management_monthly
-      lines.push({
-        description:
-          months > 1
-            ? `Ads — gestione e ottimizzazione campagne (canone mensile × ${months} mesi)`
-            : "Ads — gestione e ottimizzazione campagne (canone mensile)",
-        qty: months,
-        unitPrice: u,
-        total: u * months,
-        billing: "monthly",
-      })
+      const mgmtMonthly = lineBilling.ads_management === "monthly"
+      if (mgmtMonthly) {
+        lines.push({
+          description:
+            months > 1
+              ? `Ads — gestione e ottimizzazione campagne (canone mensile × ${months} mesi)`
+              : "Ads — gestione e ottimizzazione campagne (canone mensile)",
+          qty: months,
+          unitPrice: u,
+          total: u * months,
+          billing: "monthly",
+        })
+      } else {
+        lines.push({
+          description: "Ads — gestione e ottimizzazione campagne (progetto / piano una tantum)",
+          qty: 1,
+          unitPrice: u,
+          total: u,
+          billing: "once",
+        })
+      }
     }
 
     if (lines.length === adsStart) {

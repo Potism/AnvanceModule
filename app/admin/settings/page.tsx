@@ -57,12 +57,14 @@ const FIELDS: { key: keyof ServicePricing; labelKey: string }[] = [
 ]
 
 const BILLING_ROWS: { key: ProductionLineKey; labelKey: string }[] = [
+  { key: "social_management", labelKey: "pricing.billSocial" },
   { key: "video_reels", labelKey: "pricing.billReels" },
   { key: "video_longform", labelKey: "pricing.billLong" },
   { key: "video_cinematic", labelKey: "pricing.billCine" },
   { key: "photography", labelKey: "pricing.billPhoto" },
   { key: "graphic_design", labelKey: "pricing.billGraphic" },
   { key: "ads_setup", labelKey: "pricing.billAdsSetup" },
+  { key: "ads_management", labelKey: "pricing.billAdsManagement" },
 ]
 
 export default function AdminSettingsPage() {
