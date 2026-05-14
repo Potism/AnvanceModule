@@ -29,7 +29,7 @@ import { toast } from "sonner"
 import { createClient } from "@/lib/supabase/client"
 import { useLanguage } from "@/lib/language-context"
 import { generateClientPDF } from "@/lib/pdf-generator"
-import { loadServicePricing, projectTypeFromWantsFields, loadServiceLineBilling } from "@/lib/service-pricing"
+import { loadServicePricing, projectTypeFromWantsFields, loadServiceLineBilling, loadServicePricingActive } from "@/lib/service-pricing"
 
 export function ClientForm() {
   const { t } = useLanguage()
@@ -257,7 +257,7 @@ export function ClientForm() {
                       ...submittedData,
                       project_type: projectTypeFromWantsFields(submittedData),
                     },
-                    { mode: "proposal", pricing: loadServicePricing(), lineBilling: loadServiceLineBilling() },
+                    { mode: "proposal", pricing: loadServicePricing(), lineBilling: loadServiceLineBilling(), pricingActive: loadServicePricingActive() },
                   )
                 }
                 className="gap-2 text-sm"

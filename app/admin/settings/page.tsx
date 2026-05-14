@@ -6,6 +6,7 @@ import { Header } from "@/components/header"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Switch } from "@/components/ui/switch"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   Select,
@@ -21,9 +22,14 @@ import {
   saveServicePricing,
   loadServiceLineBilling,
   saveServiceLineBilling,
+  loadServicePricingActive,
+  saveServicePricingActive,
+  DEFAULT_SERVICE_PRICING_ACTIVE,
   type ServicePricing,
   type ServiceLineBilling,
   type ProductionLineKey,
+  type ListinoTariffKey,
+  type ServicePricingActive,
 } from "@/lib/service-pricing"
 import { useLanguage } from "@/lib/language-context"
 import { ArrowLeft, Save, RotateCcw } from "lucide-react"
@@ -63,10 +69,12 @@ export default function AdminSettingsPage() {
   const { t } = useLanguage()
   const [p, setP] = useState<ServicePricing>(DEFAULT_SERVICE_PRICING)
   const [lineBilling, setLineBilling] = useState<ServiceLineBilling>(DEFAULT_SERVICE_LINE_BILLING)
+  const [pricingActive, setPricingActive] = useState<ServicePricingActive>(DEFAULT_SERVICE_PRICING_ACTIVE)
 
   useEffect(() => {
     setP(loadServicePricing())
     setLineBilling(loadServiceLineBilling())
+    setPricingActive(loadServicePricingActive())
   }, [])
 
   const update = (key: keyof ServicePricing, value: string) => {
@@ -77,14 +85,17 @@ export default function AdminSettingsPage() {
   const handleSave = () => {
     saveServicePricing(p)
     saveServiceLineBilling(lineBilling)
+    saveServicePricingActive(pricingActive)
     toast.success(t("pricing.saved"))
   }
 
   const handleReset = () => {
     setP({ ...DEFAULT_SERVICE_PRICING })
     setLineBilling({ ...DEFAULT_SERVICE_LINE_BILLING })
+    setPricingActive({ ...DEFAULT_SERVICE_PRICING_ACTIVE })
     saveServicePricing(DEFAULT_SERVICE_PRICING)
     saveServiceLineBilling(DEFAULT_SERVICE_LINE_BILLING)
+    saveServicePricingActive(DEFAULT_SERVICE_PRICING_ACTIVE)
     toast.success(t("pricing.reset"))
   }
 
@@ -111,23 +122,58 @@ export default function AdminSettingsPage() {
             <CardDescription>{t("pricing.cardDesc")}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid gap-4 sm:grid-cols-2">
-              {FIELDS.map(({ key, labelKey }) => (
-                <div key={key} className="space-y-1.5">
-                  <Label htmlFor={key} className="text-xs font-medium">
-                    {t(labelKey)}
-                  </Label>
-                  <Input
-                    id={key}
-                    type="number"
-                    min={0}
-                    step={key === "vatPercent" ? 1 : 50}
-                    value={p[key]}
-                    onChange={(e) => update(key, e.target.value)}
-                    className="bg-secondary border-border font-mono text-sm"
-                  />
-                </div>
-              ))}
+            <div className="grid gap-4">
+              {FIELDS.map(({ key, labelKey }) =>
+                key === "vatPercent" ? (
+                  <div key={key} className="space-y-1.5">
+                    <Label htmlFor={key} className="text-xs font-medium">
+                      {t(labelKey)}
+                    </Label>
+                    <Input
+                      id={key}
+                      type="number"
+                      min={0}
+                      step={1}
+                      value={p[key]}
+                      onChange={(e) => update(key, e.target.value)}
+                      className="bg-secondary border-border font-mono text-sm max-w-xs"
+                    />
+                  </div>
+                ) : (
+                  <div
+                    key={key}
+                    className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_140px] sm:items-end pb-4 border-b border-border/60 last:border-0 last:pb-0"
+                  >
+                    <div className="space-y-1.5 min-w-0">
+                      <Label htmlFor={key} className="text-xs font-medium">
+                        {t(labelKey)}
+                      </Label>
+                      <div className="flex items-center gap-2">
+                        <Switch
+                          id={`active-${key}`}
+                          checked={pricingActive[key as ListinoTariffKey]}
+                          onCheckedChange={(checked) =>
+                            setPricingActive((prev) => ({
+                              ...prev,
+                              [key as ListinoTariffKey]: checked,
+                            }))
+                          }
+                        />
+                        <span className="text-xs text-muted-foreground">{t("pricing.showInPdf")}</span>
+                      </div>
+                    </div>
+                    <Input
+                      id={key}
+                      type="number"
+                      min={0}
+                      step={50}
+                      value={p[key]}
+                      onChange={(e) => update(key, e.target.value)}
+                      className="bg-secondary border-border font-mono text-sm w-full sm:max-w-[140px]"
+                    />
+                  </div>
+                ),
+              )}
             </div>
           </CardContent>
         </Card>

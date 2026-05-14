@@ -21,6 +21,7 @@ import {
   vatAmount,
   type ServicePricing,
   type ServiceLineBilling,
+  type ServicePricingActive,
 } from "./service-pricing"
 
 /* ------------------------------------------------------------------ */
@@ -51,6 +52,8 @@ export interface ClientPDFOptions {
   pricing?: ServicePricing
   /** Una tantum vs mensile per video/foto/graphic/ads setup (default = tutti una tantum) */
   lineBilling?: ServiceLineBilling
+  /** Tariffe disattivate non compaiono nel preventivo. Omesso = tutte attive. */
+  pricingActive?: Partial<ServicePricingActive>
   /** Giorni di validità testo in calce */
   proposalValidityDays?: number
 }
@@ -422,7 +425,31 @@ function renderPreventivoTotals(
   setText(doc, BRAND.ink)
   doc.setFontSize(11)
   doc.text(`Totale documento (IVA inclusa): ${fmtEuro(grand)}`, PAGE_MARGIN_X, y)
-  return y + 8
+  y += 8
+
+  if (contractMonths === 12) {
+    doc.setFont("helvetica", "normal")
+    doc.setFontSize(9)
+    setText(doc, BRAND.muted)
+    const avgDocMonthly = Math.round((grand / 12) * 100) / 100
+    doc.text(
+      `Equiv. mensile medio (totale documento ÷ 12, IVA inclusa): ${fmtEuro(avgDocMonthly)}`,
+      PAGE_MARGIN_X,
+      y,
+    )
+    y += 5
+    if (monthlyImp > 0) {
+      const avgRetainerImp = Math.round((monthlyImp / 12) * 100) / 100
+      doc.text(
+        `Equiv. canone mensile medio (solo voci a canone, imponibile ÷ 12): ${fmtEuro(avgRetainerImp)}`,
+        PAGE_MARGIN_X,
+        y,
+      )
+      y += 5
+    }
+  }
+
+  return y + 3
 }
 
 function drawPricingBlock(
@@ -430,6 +457,7 @@ function drawPricingBlock(
   client: Client,
   pricing: ServicePricing,
   lineBilling: ServiceLineBilling,
+  pricingActive: Partial<ServicePricingActive> | undefined,
   startY: number,
 ): number {
   const contractMonths = normalizeContractMonths(client.retainer_contract_months)
@@ -437,6 +465,7 @@ function drawPricingBlock(
     pricing,
     lineBilling,
     contractMonths,
+    pricingActive,
   })
   const subtotal = sumLines(lines)
   const vat = vatAmount(subtotal, pricing.vatPercent)
@@ -448,7 +477,7 @@ function drawPricingBlock(
     setText(doc, BRAND.muted)
     doc.setFontSize(9)
     const emptyMsg =
-      "Nessun servizio mappato dal brief su questo listino (oppure tutti i prezzi sono a zero). Controlla i servizi selezionati e Listino preventivi in /admin/settings."
+      "Nessun servizio mappato dal brief su questo listino (oppure tutti i prezzi sono a zero, oppure le tariffe sono disattivate in Listino preventivi). Controlla i servizi selezionati e /admin/settings."
     const emptyW = doc.internal.pageSize.getWidth() - PAGE_MARGIN_X * 2
     const emptyLines = doc.splitTextToSize(emptyMsg, emptyW)
     doc.text(emptyLines, PAGE_MARGIN_X, startY)
@@ -783,6 +812,7 @@ export function buildClientPDF(
   const mode = options?.mode ?? "brief"
   const pricing = options?.pricing ?? DEFAULT_SERVICE_PRICING
   const lineBilling = options?.lineBilling ?? DEFAULT_SERVICE_LINE_BILLING
+  const pricingActive = options?.pricingActive
   const validityDays = options?.proposalValidityDays ?? 30
 
   const doc = new jsPDF({ unit: "mm", format: "a4" })
@@ -807,7 +837,7 @@ export function buildClientPDF(
   if (mode === "proposal") {
     y = ensureSpace(doc, y, 55)
     y = sectionTitle(doc, "Indicativo economico", y, true)
-    y = drawPricingBlock(doc, client, pricing, lineBilling, y)
+    y = drawPricingBlock(doc, client, pricing, lineBilling, pricingActive, y)
   }
 
   drawFooter(doc, mode, validityDays)

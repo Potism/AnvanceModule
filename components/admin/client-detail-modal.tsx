@@ -39,7 +39,7 @@ import { generateClientPDF } from "@/lib/pdf-generator"
 import { useLanguage } from "@/lib/language-context"
 import { createClient } from "@/lib/supabase/client"
 import { toast } from "sonner"
-import { loadServicePricing, loadServiceLineBilling } from "@/lib/service-pricing"
+import { loadServicePricing, loadServiceLineBilling, loadServicePricingActive } from "@/lib/service-pricing"
 
 interface ClientDetailModalProps {
   client: Client | null
@@ -278,6 +278,7 @@ export function ClientDetailModal({
                       mode: "proposal",
                       pricing: loadServicePricing(),
                       lineBilling: loadServiceLineBilling(),
+                      pricingActive: loadServicePricingActive(),
                     })
                   }
                   className="gap-1.5"

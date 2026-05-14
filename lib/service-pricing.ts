@@ -7,6 +7,7 @@ import type { Client } from "@/lib/types"
 
 export const PRICING_STORAGE_KEY = "anvance-service-pricing-v1"
 export const LINE_BILLING_STORAGE_KEY = "anvance-service-line-billing-v1"
+export const PRICING_ACTIVE_STORAGE_KEY = "anvance-service-pricing-active-v1"
 
 /** Come trattare ciascuna voce “produzione” nel PDF (una tantum vs canone mensile). */
 export type LineBillingMode = "once" | "monthly"
@@ -80,6 +81,31 @@ export const DEFAULT_SERVICE_PRICING: ServicePricing = {
   vatPercent: 22,
 }
 
+/** Chiavi listino (esclusa IVA): attivo/inattivo controlla se la tariffa compare nel PDF preventivo. */
+export type ListinoTariffKey = Exclude<keyof ServicePricing, "vatPercent">
+
+export type ServicePricingActive = Record<ListinoTariffKey, boolean>
+
+export const DEFAULT_SERVICE_PRICING_ACTIVE: ServicePricingActive = {
+  website_custom: true,
+  website_wordpress: true,
+  logo_identity: true,
+  social_management_monthly: true,
+  video_reels_package: true,
+  video_longform_package: true,
+  video_cinematic_project: true,
+  photography_day: true,
+  graphic_design_project: true,
+  ads_setup_onetime: true,
+  ads_management_monthly: true,
+  video_reels_monthly: true,
+  video_longform_monthly: true,
+  video_cinematic_monthly: true,
+  photography_monthly: true,
+  graphic_design_monthly: true,
+  ads_setup_monthly: true,
+}
+
 export type PreventivoBilling = "once" | "monthly"
 
 export interface PreventivoLine {
@@ -95,6 +121,8 @@ export interface PreventivoBuildContext {
   lineBilling: ServiceLineBilling
   /** Mesi di impegno per le righe a canone (1 = mese per mese senza multiplo). */
   contractMonths: number
+  /** Tariffe disattivate non compaiono nel PDF preventivo. Omesso = tutte attive. */
+  pricingActive?: Partial<ServicePricingActive>
 }
 
 function clampMoney(n: number): number {
@@ -144,6 +172,23 @@ export function saveServiceLineBilling(b: ServiceLineBilling): void {
   window.localStorage.setItem(LINE_BILLING_STORAGE_KEY, JSON.stringify(b))
 }
 
+export function loadServicePricingActive(): ServicePricingActive {
+  if (typeof window === "undefined") return { ...DEFAULT_SERVICE_PRICING_ACTIVE }
+  try {
+    const raw = window.localStorage.getItem(PRICING_ACTIVE_STORAGE_KEY)
+    if (!raw) return { ...DEFAULT_SERVICE_PRICING_ACTIVE }
+    const parsed = JSON.parse(raw) as Partial<ServicePricingActive>
+    return { ...DEFAULT_SERVICE_PRICING_ACTIVE, ...parsed }
+  } catch {
+    return { ...DEFAULT_SERVICE_PRICING_ACTIVE }
+  }
+}
+
+export function saveServicePricingActive(a: ServicePricingActive): void {
+  if (typeof window === "undefined") return
+  window.localStorage.setItem(PRICING_ACTIVE_STORAGE_KEY, JSON.stringify(a))
+}
+
 function projectTypeList(client: Client): string[] {
   return Array.isArray(client.project_type) ? client.project_type : []
 }
@@ -188,34 +233,45 @@ function monthlyUnit(monthlyField: number, onceFallback: number): number {
   return m > 0 ? m : clampMoney(onceFallback)
 }
 
+/** Quale cella listino determina l'importo (canone mensile vs fallback una tantum). */
+function sourceKeyMonthlyOrOnce(
+  monthlyField: number,
+  monthKey: ListinoTariffKey,
+  onceKey: ListinoTariffKey,
+): ListinoTariffKey {
+  return clampMoney(monthlyField) > 0 ? monthKey : onceKey
+}
+
 /**
  * Costruisce le righe del preventivo in base ai servizi richiesti nel brief,
  * al listino, alla modalità una tantum/mensile (settings) e ai mesi di impegno.
  */
 export function buildPreventivoLines(client: Client, ctx: PreventivoBuildContext): PreventivoLine[] {
-  const { pricing, lineBilling, contractMonths } = ctx
+  const { pricing, lineBilling, contractMonths, pricingActive: pa } = ctx
   const months = Math.max(1, Math.min(12, contractMonths))
   const lines: PreventivoLine[] = []
   const pt = projectTypeList(client)
+  const active: ServicePricingActive = { ...DEFAULT_SERVICE_PRICING_ACTIVE, ...pa }
+  const on = (k: ListinoTariffKey) => active[k] !== false
 
   if (effectiveWant(client.wants_website, pt.includes("website"))) {
-    const unit =
-      client.website_platform === "wordpress"
-        ? pricing.website_wordpress
-        : pricing.website_custom
-    lines.push({
-      description:
-        client.website_platform === "wordpress"
+    const wp = client.website_platform === "wordpress"
+    const tariffKey: ListinoTariffKey = wp ? "website_wordpress" : "website_custom"
+    if (on(tariffKey)) {
+      const unit = wp ? pricing.website_wordpress : pricing.website_custom
+      lines.push({
+        description: wp
           ? "Sito web — WordPress / template"
           : "Sito web — sviluppo custom / scalabile",
-      qty: 1,
-      unitPrice: unit,
-      total: unit,
-      billing: "once",
-    })
+        qty: 1,
+        unitPrice: unit,
+        total: unit,
+        billing: "once",
+      })
+    }
   }
 
-  if (effectiveWant(client.wants_new_logo, pt.includes("branding"))) {
+  if (effectiveWant(client.wants_new_logo, pt.includes("branding")) && on("logo_identity")) {
     lines.push({
       description: "Logo & identità visiva / restyling",
       qty: 1,
@@ -225,7 +281,10 @@ export function buildPreventivoLines(client: Client, ctx: PreventivoBuildContext
     })
   }
 
-  if (effectiveWant(client.wants_social_management, pt.includes("social_management"))) {
+  if (
+    effectiveWant(client.wants_social_management, pt.includes("social_management")) &&
+    on("social_management_monthly")
+  ) {
     const unit = pricing.social_management_monthly
     lines.push({
       description:
@@ -244,15 +303,24 @@ export function buildPreventivoLines(client: Client, ctx: PreventivoBuildContext
     const unit = monthly
       ? monthlyUnit(pricing.video_reels_monthly, pricing.video_reels_package)
       : pricing.video_reels_package
-    lines.push({
-      description: monthly
-        ? "Produzione Reels / short-form — canone mensile (retainer produzione)"
-        : "Produzione Reels / short-form — pacchetto (una tantum)",
-      qty: monthly ? months : 1,
-      unitPrice: unit,
-      total: monthly ? unit * months : unit,
-      billing: monthly ? "monthly" : "once",
-    })
+    const src: ListinoTariffKey = monthly
+      ? sourceKeyMonthlyOrOnce(
+          pricing.video_reels_monthly,
+          "video_reels_monthly",
+          "video_reels_package",
+        )
+      : "video_reels_package"
+    if (on(src)) {
+      lines.push({
+        description: monthly
+          ? "Produzione Reels / short-form — canone mensile (retainer produzione)"
+          : "Produzione Reels / short-form — pacchetto (una tantum)",
+        qty: monthly ? months : 1,
+        unitPrice: unit,
+        total: monthly ? unit * months : unit,
+        billing: monthly ? "monthly" : "once",
+      })
+    }
   }
 
   if (effectiveWant(client.wants_long_videos, pt.includes("youtube"))) {
@@ -260,15 +328,24 @@ export function buildPreventivoLines(client: Client, ctx: PreventivoBuildContext
     const unit = monthly
       ? monthlyUnit(pricing.video_longform_monthly, pricing.video_longform_package)
       : pricing.video_longform_package
-    lines.push({
-      description: monthly
-        ? "Produzione YouTube / long-form — canone mensile (retainer produzione)"
-        : "Produzione YouTube / long-form — pacchetto (una tantum)",
-      qty: monthly ? months : 1,
-      unitPrice: unit,
-      total: monthly ? unit * months : unit,
-      billing: monthly ? "monthly" : "once",
-    })
+    const src: ListinoTariffKey = monthly
+      ? sourceKeyMonthlyOrOnce(
+          pricing.video_longform_monthly,
+          "video_longform_monthly",
+          "video_longform_package",
+        )
+      : "video_longform_package"
+    if (on(src)) {
+      lines.push({
+        description: monthly
+          ? "Produzione YouTube / long-form — canone mensile (retainer produzione)"
+          : "Produzione YouTube / long-form — pacchetto (una tantum)",
+        qty: monthly ? months : 1,
+        unitPrice: unit,
+        total: monthly ? unit * months : unit,
+        billing: monthly ? "monthly" : "once",
+      })
+    }
   }
 
   if (effectiveWant(client.wants_cinematic_videos, pt.includes("cinematic_video"))) {
@@ -276,15 +353,24 @@ export function buildPreventivoLines(client: Client, ctx: PreventivoBuildContext
     const unit = monthly
       ? monthlyUnit(pricing.video_cinematic_monthly, pricing.video_cinematic_project)
       : pricing.video_cinematic_project
-    lines.push({
-      description: monthly
-        ? "Video cinematic / spot / corporate — canone mensile (retainer)"
-        : "Video cinematic / spot / corporate (progetto una tantum)",
-      qty: monthly ? months : 1,
-      unitPrice: unit,
-      total: monthly ? unit * months : unit,
-      billing: monthly ? "monthly" : "once",
-    })
+    const src: ListinoTariffKey = monthly
+      ? sourceKeyMonthlyOrOnce(
+          pricing.video_cinematic_monthly,
+          "video_cinematic_monthly",
+          "video_cinematic_project",
+        )
+      : "video_cinematic_project"
+    if (on(src)) {
+      lines.push({
+        description: monthly
+          ? "Video cinematic / spot — canone mensile (retainer)"
+          : "Video cinematic / spot (progetto una tantum)",
+        qty: monthly ? months : 1,
+        unitPrice: unit,
+        total: monthly ? unit * months : unit,
+        billing: monthly ? "monthly" : "once",
+      })
+    }
   }
 
   if (effectiveWant(client.wants_photography, pt.includes("photography"))) {
@@ -292,32 +378,44 @@ export function buildPreventivoLines(client: Client, ctx: PreventivoBuildContext
     const unit = monthly
       ? monthlyUnit(pricing.photography_monthly, pricing.photography_day)
       : pricing.photography_day
-    lines.push({
-      description: monthly
-        ? "Fotografia — canone mensile (piano produzione / giornate incluse)"
-        : "Fotografia professionale — giornata / shooting (una tantum)",
-      qty: monthly ? months : 1,
-      unitPrice: unit,
-      total: monthly ? unit * months : unit,
-      billing: monthly ? "monthly" : "once",
-    })
+    const src: ListinoTariffKey = monthly
+      ? sourceKeyMonthlyOrOnce(pricing.photography_monthly, "photography_monthly", "photography_day")
+      : "photography_day"
+    if (on(src)) {
+      lines.push({
+        description: monthly
+          ? "Fotografia — canone mensile (piano produzione / giornate incluse)"
+          : "Fotografia professionale — giornata / shooting (una tantum)",
+        qty: monthly ? months : 1,
+        unitPrice: unit,
+        total: monthly ? unit * months : unit,
+        billing: monthly ? "monthly" : "once",
+      })
+    }
   }
 
   if (effectiveWant(client.wants_graphic_design, false)) {
     const monthly = lineBilling.graphic_design === "monthly"
     if (monthly) {
       const unit = monthlyUnit(pricing.graphic_design_monthly, pricing.graphic_design_project)
-      lines.push({
-        description:
-          months > 1
-            ? `Graphic design & stampa — canone mensile (retainer, impegno ${months} mesi)`
-            : "Graphic design & stampa — canone mensile (retainer)",
-        qty: months,
-        unitPrice: unit,
-        total: unit * months,
-        billing: "monthly",
-      })
-    } else {
+      const src = sourceKeyMonthlyOrOnce(
+        pricing.graphic_design_monthly,
+        "graphic_design_monthly",
+        "graphic_design_project",
+      )
+      if (on(src)) {
+        lines.push({
+          description:
+            months > 1
+              ? `Graphic design & stampa — canone mensile (retainer, impegno ${months} mesi)`
+              : "Graphic design & stampa — canone mensile (retainer)",
+          qty: months,
+          unitPrice: unit,
+          total: unit * months,
+          billing: "monthly",
+        })
+      }
+    } else if (on("graphic_design_project")) {
       const n = client.graphic_design_items?.length ?? 0
       const qty = n > 0 ? n : 1
       const unit = pricing.graphic_design_project
@@ -333,19 +431,28 @@ export function buildPreventivoLines(client: Client, ctx: PreventivoBuildContext
 
   if (effectiveWant(client.wants_ads_management, pt.includes("ads"))) {
     const setupMonthly = lineBilling.ads_setup === "monthly"
+    const adsStart = lines.length
+
     if (setupMonthly) {
       const unit = monthlyUnit(pricing.ads_setup_monthly, pricing.ads_setup_onetime)
-      lines.push({
-        description:
-          months > 1
-            ? `Ads — strategia & struttura (canone mensile, impegno ${months} mesi)`
-            : "Ads — strategia & struttura campagne (canone mensile)",
-        qty: months,
-        unitPrice: unit,
-        total: unit * months,
-        billing: "monthly",
-      })
-    } else if (pricing.ads_setup_onetime > 0) {
+      const src = sourceKeyMonthlyOrOnce(
+        pricing.ads_setup_monthly,
+        "ads_setup_monthly",
+        "ads_setup_onetime",
+      )
+      if (on(src)) {
+        lines.push({
+          description:
+            months > 1
+              ? `Ads — strategia & struttura (canone mensile, impegno ${months} mesi)`
+              : "Ads — strategia & struttura campagne (canone mensile)",
+          qty: months,
+          unitPrice: unit,
+          total: unit * months,
+          billing: "monthly",
+        })
+      }
+    } else if (pricing.ads_setup_onetime > 0 && on("ads_setup_onetime")) {
       lines.push({
         description: "Ads — setup, strategia e struttura campagne (una tantum)",
         qty: 1,
@@ -354,7 +461,8 @@ export function buildPreventivoLines(client: Client, ctx: PreventivoBuildContext
         billing: "once",
       })
     }
-    if (pricing.ads_management_monthly > 0) {
+
+    if (pricing.ads_management_monthly > 0 && on("ads_management_monthly")) {
       const u = pricing.ads_management_monthly
       lines.push({
         description:
@@ -367,13 +475,14 @@ export function buildPreventivoLines(client: Client, ctx: PreventivoBuildContext
         billing: "monthly",
       })
     }
-    if (
-      !setupMonthly &&
-      pricing.ads_setup_onetime <= 0 &&
-      pricing.ads_management_monthly <= 0
-    ) {
+
+    if (lines.length === adsStart) {
+      const zeroListino =
+        !setupMonthly && pricing.ads_setup_onetime <= 0 && pricing.ads_management_monthly <= 0
       lines.push({
-        description: "Advertising / campagne — importo da confermare (listino Ads a €0)",
+        description: zeroListino
+          ? "Advertising / campagne — importo da confermare (listino Ads a €0)"
+          : "Advertising / campagne — importo da confermare (listino Ads a €0 o tariffa disattivata)",
         qty: 1,
         unitPrice: 0,
         total: 0,

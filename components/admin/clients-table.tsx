@@ -37,7 +37,7 @@ import {
 import { format } from "date-fns"
 import { it, enUS } from "date-fns/locale"
 import { generateClientPDF } from "@/lib/pdf-generator"
-import { loadServicePricing, loadServiceLineBilling } from "@/lib/service-pricing"
+import { loadServicePricing, loadServiceLineBilling, loadServicePricingActive } from "@/lib/service-pricing"
 import { createClient } from "@/lib/supabase/client"
 import { toast } from "sonner"
 import { ClientDetailModal } from "./client-detail-modal"
@@ -285,6 +285,7 @@ export function ClientsTable({ initialClients }: ClientsTableProps) {
                               mode: "proposal",
                               pricing: loadServicePricing(),
                               lineBilling: loadServiceLineBilling(),
+                              pricingActive: loadServicePricingActive(),
                             })
                           }
                         >
@@ -428,6 +429,7 @@ export function ClientsTable({ initialClients }: ClientsTableProps) {
                                   mode: "proposal",
                                   pricing: loadServicePricing(),
                                   lineBilling: loadServiceLineBilling(),
+                                  pricingActive: loadServicePricingActive(),
                                 })
                               }
                             >
