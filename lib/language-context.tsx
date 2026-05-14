@@ -19,6 +19,7 @@ export const translations: Translations = {
   // Header
   "header.clientBrief": { it: "Brief Cliente", en: "Client Brief" },
   "header.dashboard": { it: "Dashboard", en: "Dashboard" },
+  "header.logout": { it: "Esci", en: "Logout" },
 
   // Home Page
   "home.badge": { it: "Brief di analisi preliminare", en: "Preliminary Analysis Brief" },

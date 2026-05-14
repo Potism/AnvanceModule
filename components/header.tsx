@@ -1,15 +1,24 @@
 "use client"
 
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { LayoutDashboard, FileEdit } from "lucide-react"
+import { LayoutDashboard, FileEdit, LogOut } from "lucide-react"
 import { useLanguage } from "@/lib/language-context"
+import { createClient } from "@/lib/supabase/client"
 
 export function Header() {
   const pathname = usePathname()
+  const router = useRouter()
   const isAdmin = pathname.startsWith("/admin")
   const { language, setLanguage, t } = useLanguage()
+
+  const handleLogout = async () => {
+    const supabase = createClient()
+    await supabase.auth.signOut()
+    router.push("/login")
+    router.refresh()
+  }
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -67,6 +76,15 @@ export function Header() {
               <LayoutDashboard className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               <span className="hidden sm:inline text-xs sm:text-sm">{t("header.dashboard")}</span>
             </Link>
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleLogout}
+            className="gap-1.5 sm:gap-2 h-8 sm:h-9 px-2 sm:px-3 text-muted-foreground hover:text-destructive"
+          >
+            <LogOut className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+            <span className="hidden sm:inline text-xs sm:text-sm">{t("header.logout")}</span>
           </Button>
         </div>
       </div>
