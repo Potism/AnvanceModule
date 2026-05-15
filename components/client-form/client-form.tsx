@@ -29,10 +29,12 @@ import { toast } from "sonner"
 import { createClient } from "@/lib/supabase/client"
 import { useLanguage } from "@/lib/language-context"
 import { generateClientPDF } from "@/lib/pdf-generator"
-import { loadServicePricing, projectTypeFromWantsFields, loadServiceLineBilling, loadServicePricingActive } from "@/lib/service-pricing"
+import { projectTypeFromWantsFields } from "@/lib/service-pricing"
+import { useListino } from "@/lib/listino-context"
 
 export function ClientForm() {
   const { t } = useLanguage()
+  const { pricing, lineBilling, pricingActive } = useListino()
   const [currentStep, setCurrentStep] = useState(0)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isSubmitted, setIsSubmitted] = useState(false)
@@ -257,7 +259,7 @@ export function ClientForm() {
                       ...submittedData,
                       project_type: projectTypeFromWantsFields(submittedData),
                     },
-                    { mode: "proposal", pricing: loadServicePricing(), lineBilling: loadServiceLineBilling(), pricingActive: loadServicePricingActive() },
+                    { mode: "proposal", pricing, lineBilling, pricingActive },
                   )
                 }
                 className="gap-2 text-sm"

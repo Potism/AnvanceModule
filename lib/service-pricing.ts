@@ -1,6 +1,7 @@
 /**
  * Listino prezzi per sezione servizio — usato per generare righe preventivo
- * nel PDF e nel dashboard. Persistenza: localStorage (browser).
+ * nel PDF e nel dashboard. Persistenza: Supabase `app_settings` (via ListinoProvider).
+ * Le funzioni load/save localStorage restano solo per migrazione una tantum.
  */
 
 import type { Client } from "@/lib/types"

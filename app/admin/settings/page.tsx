@@ -18,12 +18,6 @@ import {
 import {
   DEFAULT_SERVICE_PRICING,
   DEFAULT_SERVICE_LINE_BILLING,
-  loadServicePricing,
-  saveServicePricing,
-  loadServiceLineBilling,
-  saveServiceLineBilling,
-  loadServicePricingActive,
-  saveServicePricingActive,
   DEFAULT_SERVICE_PRICING_ACTIVE,
   type ServicePricing,
   type ServiceLineBilling,
@@ -31,8 +25,9 @@ import {
   type ListinoTariffKey,
   type ServicePricingActive,
 } from "@/lib/service-pricing"
+import { useListino } from "@/lib/listino-context"
 import { useLanguage } from "@/lib/language-context"
-import { ArrowLeft, Save, RotateCcw } from "lucide-react"
+import { ArrowLeft, Save, RotateCcw, Loader2 } from "lucide-react"
 import { toast } from "sonner"
 
 const FIELDS: { key: keyof ServicePricing; labelKey: string }[] = [
@@ -69,36 +64,70 @@ const BILLING_ROWS: { key: ProductionLineKey; labelKey: string }[] = [
 
 export default function AdminSettingsPage() {
   const { t } = useLanguage()
+  const { pricing, lineBilling, pricingActive, loading, save } = useListino()
   const [p, setP] = useState<ServicePricing>(DEFAULT_SERVICE_PRICING)
-  const [lineBilling, setLineBilling] = useState<ServiceLineBilling>(DEFAULT_SERVICE_LINE_BILLING)
-  const [pricingActive, setPricingActive] = useState<ServicePricingActive>(DEFAULT_SERVICE_PRICING_ACTIVE)
+  const [lineBillingLocal, setLineBillingLocal] = useState<ServiceLineBilling>(DEFAULT_SERVICE_LINE_BILLING)
+  const [pricingActiveLocal, setPricingActiveLocal] = useState<ServicePricingActive>(
+    DEFAULT_SERVICE_PRICING_ACTIVE,
+  )
+  const [saving, setSaving] = useState(false)
 
   useEffect(() => {
-    setP(loadServicePricing())
-    setLineBilling(loadServiceLineBilling())
-    setPricingActive(loadServicePricingActive())
-  }, [])
+    if (!loading) {
+      setP(pricing)
+      setLineBillingLocal(lineBilling)
+      setPricingActiveLocal(pricingActive)
+    }
+  }, [loading, pricing, lineBilling, pricingActive])
 
   const update = (key: keyof ServicePricing, value: string) => {
     const n = parseFloat(value.replace(",", "."))
     setP((prev) => ({ ...prev, [key]: Number.isFinite(n) ? n : 0 }))
   }
 
-  const handleSave = () => {
-    saveServicePricing(p)
-    saveServiceLineBilling(lineBilling)
-    saveServicePricingActive(pricingActive)
-    toast.success(t("pricing.saved"))
+  const handleSave = async () => {
+    setSaving(true)
+    const result = await save({
+      pricing: p,
+      lineBilling: lineBillingLocal,
+      pricingActive: pricingActiveLocal,
+    })
+    setSaving(false)
+    if (result.ok) {
+      toast.success(t("pricing.saved"))
+    } else {
+      toast.error(result.error ?? t("pricing.saveError"))
+    }
   }
 
-  const handleReset = () => {
+  const handleReset = async () => {
     setP({ ...DEFAULT_SERVICE_PRICING })
-    setLineBilling({ ...DEFAULT_SERVICE_LINE_BILLING })
-    setPricingActive({ ...DEFAULT_SERVICE_PRICING_ACTIVE })
-    saveServicePricing(DEFAULT_SERVICE_PRICING)
-    saveServiceLineBilling(DEFAULT_SERVICE_LINE_BILLING)
-    saveServicePricingActive(DEFAULT_SERVICE_PRICING_ACTIVE)
-    toast.success(t("pricing.reset"))
+    setLineBillingLocal({ ...DEFAULT_SERVICE_LINE_BILLING })
+    setPricingActiveLocal({ ...DEFAULT_SERVICE_PRICING_ACTIVE })
+    setSaving(true)
+    const result = await save({
+      pricing: { ...DEFAULT_SERVICE_PRICING },
+      lineBilling: { ...DEFAULT_SERVICE_LINE_BILLING },
+      pricingActive: { ...DEFAULT_SERVICE_PRICING_ACTIVE },
+    })
+    setSaving(false)
+    if (result.ok) {
+      toast.success(t("pricing.reset"))
+    } else {
+      toast.error(result.error ?? t("pricing.saveError"))
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Header />
+        <main className="container mx-auto px-4 py-16 flex justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          <span className="sr-only">{t("pricing.loading")}</span>
+        </main>
+      </div>
+    )
   }
 
   return (
@@ -153,9 +182,9 @@ export default function AdminSettingsPage() {
                       <div className="flex items-center gap-2">
                         <Switch
                           id={`active-${key}`}
-                          checked={pricingActive[key as ListinoTariffKey]}
+                          checked={pricingActiveLocal[key as ListinoTariffKey]}
                           onCheckedChange={(checked) =>
-                            setPricingActive((prev) => ({
+                            setPricingActiveLocal((prev) => ({
                               ...prev,
                               [key as ListinoTariffKey]: checked,
                             }))
@@ -193,9 +222,9 @@ export default function AdminSettingsPage() {
               >
                 <Label className="text-xs font-medium sm:min-w-[140px]">{t(labelKey)}</Label>
                 <Select
-                  value={lineBilling[key]}
+                  value={lineBillingLocal[key]}
                   onValueChange={(v) =>
-                    setLineBilling((prev) => ({ ...prev, [key]: v as "once" | "monthly" }))
+                    setLineBillingLocal((prev) => ({ ...prev, [key]: v as "once" | "monthly" }))
                   }
                 >
                   <SelectTrigger className="w-full sm:w-[220px] bg-secondary border-border h-9 text-sm">
@@ -212,11 +241,11 @@ export default function AdminSettingsPage() {
         </Card>
 
         <div className="flex flex-wrap gap-2">
-          <Button type="button" onClick={handleSave} className="gap-2">
-            <Save className="h-4 w-4" />
+          <Button type="button" onClick={handleSave} disabled={saving} className="gap-2">
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
             {t("pricing.save")}
           </Button>
-          <Button type="button" variant="outline" onClick={handleReset} className="gap-2">
+          <Button type="button" variant="outline" onClick={handleReset} disabled={saving} className="gap-2">
             <RotateCcw className="h-4 w-4" />
             {t("pricing.resetDefaults")}
           </Button>

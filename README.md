@@ -1,111 +1,114 @@
 # Anvance Production — Client Brief Module
 
-A professional, multi-step client brief webapp for **Anvance Production**.
-
-Clients fill in a guided analytical brief covering company, store profile,
-brand identity, digital presence, marketing and the services they want to
-activate — from cinematic video, reels and long-form YouTube to professional
-photography and custom-coded scalable websites. The team gets a beautiful,
-branded PDF and an internal dashboard to triage every request.
+Internal team tool for **Anvance Production**: capture client briefs, manage leads in a dashboard, configure shared pricing (listino), and export branded PDFs (brief + preventivo).
 
 ## Tech stack
 
 - **Next.js 16** (App Router) + React 19 + TypeScript
-- **Tailwind CSS v4** + shadcn/ui (Radix primitives)
-- **Supabase** for storage of briefs (Postgres + RLS)
-- **react-hook-form** for the multi-step form
-- **jsPDF + jspdf-autotable** for the branded PDF output
+- **Tailwind CSS v4** + shadcn/ui
+- **Supabase** — Postgres, Auth, RLS
+- **react-hook-form** — multi-step brief
+- **jsPDF + jspdf-autotable** — PDF export
 
 ## Getting started
 
 ```bash
-pnpm install     # or npm install / yarn
-pnpm dev         # starts the app on http://localhost:3000
+npm install
+npm run dev
 ```
 
-### 1 — Environment variables
+Open [http://localhost:3000](http://localhost:3000). You will be redirected to `/login` until authenticated.
 
-Copy `.env.example` to `.env.local` and fill in your Supabase keys:
+### 1 — Environment variables
 
 ```bash
 cp .env.example .env.local
 ```
+
+Fill in:
 
 ```ini
 NEXT_PUBLIC_SUPABASE_URL=https://<project>.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=<anon-key>
 ```
 
-### 2 — Supabase schema
+### 2 — Database migrations
 
-Run the SQL in `supabase/migrations/20260513_init_clients.sql` either via the
-Supabase **SQL editor** or with the Supabase CLI:
+Run all files in `supabase/migrations/` in order via the Supabase **SQL editor** or CLI:
 
 ```bash
 supabase db push
 ```
 
-This creates the `public.clients` table, the `updated_at` trigger and the
-Row-Level-Security policies the app expects (public insert, authenticated
-read/update/delete).
+Important migrations:
 
-### 3 — Admin authentication (recommended)
+| File | Purpose |
+|------|---------|
+| `20260513_init_clients.sql` | `clients` table + base RLS |
+| `20260514_simplify_clients.sql` | Simplified brief columns |
+| `20260516_secure_rls_and_settings.sql` | Secure RLS + `app_settings` (shared listino) |
 
-`/admin` reads every brief. In production, protect it with Supabase Auth or
-your reverse-proxy of choice — the route is **not** gated out of the box.
+**Do not** re-apply `20260515_admin_dashboard_rls.sql` on production — it opens anonymous read/update/delete. The `20260516` migration removes those policies.
+
+### 3 — Team users (no public sign-up)
+
+1. Supabase Dashboard → **Authentication** → **Users** → **Add user**
+2. Enter email + password for each team member
+3. They log in at `/login`
+
+Sign-up is disabled in the app; only users you create in the dashboard can access it.
+
+### 4 — Security model
+
+- **Middleware** — all routes require login except `/login` and `/auth/callback`
+- **RLS** — `clients`: authenticated insert/select/update/delete; `app_settings`: authenticated read/write (shared listino)
+- **Anon key** — still public in the browser, but RLS blocks unauthorized data access
+
+Rotate your anon key if it was ever committed to git.
 
 ## Project layout
 
 ```
 app/
-  page.tsx           Public client brief
-  admin/page.tsx     Internal dashboard
+  page.tsx              Client brief (login required)
+  login/                Team login
+  admin/page.tsx        Dashboard
+  admin/settings/       Listino preventivi (saved in Supabase)
 components/
-  client-form/       Multi-step brief form (13 steps, conditional)
-  admin/             Table, stats, detail modal
-  ui/                shadcn/ui primitives
+  client-form/          6-step brief
+  admin/                Table, stats, detail modal
 lib/
-  types.ts           Data model + option catalogues
-  pdf-generator.ts   Branded PDF (cover, sections, chips, footer)
-  language-context.tsx  IT/EN translations
-supabase/
-  migrations/        SQL schema + RLS policies
+  service-pricing.ts    Pricing types + PDF line builder
+  listino-settings.ts   Supabase persistence for listino
+  listino-context.tsx   Shared listino for all components
+  pdf-generator.ts      PDF export
+supabase/migrations/    SQL schema + RLS
 ```
 
-## Form structure
+## Form structure (6 steps)
 
-1. **Brief metadata** — agent, date, existing client toggle
-2. **Company** — name, sector, VAT
-3. **Contact**
-4. **Address**
-5. **Punto vendita** — staff, surface, revenue, customer flow
-6. **Identità & punto vendita** — logo, colours, materials, coherence
-7. **Presenza digitale** — site, social, Google Business
-8. **Marketing & sponsorships** — newsletter, WhatsApp, online + offline ads
-9. **Servizi richiesti** — macro-categories + detailed brand / social / ads / web checklists
-10. **Video / foto** (shown only if applicable)
-11. **Sito web custom** (shown only if applicable)
-12. **Brand & audience**
-13. **Difficoltà, budget & tempistiche** — pain points + budget + timeline
+1. Brief metadata (agent, date)
+2. Company
+3. Contact
+4. Address (optional)
+5. Services (website, logo, social, video, photo, graphic, ads)
+6. Summary + submit
 
-Each step uses smooth transitions, mobile-first layout and accessible Radix
-primitives. The web step explicitly offers **custom-coded, scalable
-websites** rather than off-the-shelf templates.
+## Listino preventivi
 
-## PDF output
+Configured at **Admin → Listino preventivi** (`/admin/settings`). Saved to Supabase `app_settings` so every team member sees the same prices, billing modes (once/monthly), and PDF visibility toggles.
 
-The PDF generator produces an A4 brief with:
+Existing browser `localStorage` listino is migrated automatically on first load after the migration runs.
 
-- Branded black cover header with Anvance wordmark
-- Client summary card with "Cliente attivo" badge for returning clients
-- Hairline section dividers and a tight 2-column key/value layout
-- Macro-category chips and per-category service lists
-- Conditional video/photo + website sub-sections
-- Pain-points bulleted list
-- Auto-paginated footer with page numbers
+## Scripts
+
+```bash
+npm run dev      # development
+npm run build    # production build
+npm run start    # production server
+npm run lint     # ESLint
+```
 
 ## License
 
 © Anvance Production. All rights reserved.
-# AnvanceModule
-# AnvanceModule

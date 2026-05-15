@@ -39,7 +39,7 @@ import { generateClientPDF } from "@/lib/pdf-generator"
 import { useLanguage } from "@/lib/language-context"
 import { createClient } from "@/lib/supabase/client"
 import { toast } from "sonner"
-import { loadServicePricing, loadServiceLineBilling, loadServicePricingActive } from "@/lib/service-pricing"
+import { useListino } from "@/lib/listino-context"
 
 interface ClientDetailModalProps {
   client: Client | null
@@ -69,6 +69,7 @@ export function ClientDetailModal({
   onClientUpdated,
 }: ClientDetailModalProps) {
   const { t, language } = useLanguage()
+  const { pricing, lineBilling, pricingActive } = useListino()
   const [isEditing, setIsEditing] = useState(false)
   const [saving, setSaving] = useState(false)
   const [draft, setDraft] = useState({
@@ -276,9 +277,9 @@ export function ClientDetailModal({
                   onClick={() =>
                     generateClientPDF(client, {
                       mode: "proposal",
-                      pricing: loadServicePricing(),
-                      lineBilling: loadServiceLineBilling(),
-                      pricingActive: loadServicePricingActive(),
+                      pricing,
+                      lineBilling,
+                      pricingActive,
                     })
                   }
                   className="gap-1.5"

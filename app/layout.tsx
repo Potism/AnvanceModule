@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import { Toaster } from 'sonner'
 import { LanguageProvider } from '@/lib/language-context'
+import { ListinoProvider } from '@/lib/listino-context'
 import './globals.css'
 
 const geist = Geist({ 
@@ -42,7 +43,9 @@ export default function RootLayout({
     <html lang="it" className={`${geist.variable} ${geistMono.variable} bg-background`}>
       <body className="font-sans antialiased min-h-screen">
         <LanguageProvider>
-          {children}
+          <ListinoProvider>
+            {children}
+          </ListinoProvider>
         </LanguageProvider>
         <Toaster
           position="top-right"

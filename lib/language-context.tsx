@@ -1,6 +1,8 @@
 "use client"
 
-import { createContext, useContext, useState, ReactNode } from "react"
+import { createContext, useContext, useEffect, useState, ReactNode } from "react"
+
+const LANGUAGE_STORAGE_KEY = "anvance-lang"
 
 type Language = "it" | "en"
 
@@ -20,6 +22,21 @@ export const translations: Translations = {
   "header.clientBrief": { it: "Brief Cliente", en: "Client Brief" },
   "header.dashboard": { it: "Dashboard", en: "Dashboard" },
   "header.logout": { it: "Esci", en: "Logout" },
+
+  // Admin errors
+  "admin.fetchError": {
+    it: "Impossibile caricare i brief. Verifica la connessione a Supabase e le policy RLS (utente autenticato).",
+    en: "Could not load briefs. Check your Supabase connection and RLS policies (authenticated user).",
+  },
+  "admin.configError": {
+    it: "Supabase non configurato. Aggiungi NEXT_PUBLIC_SUPABASE_URL e NEXT_PUBLIC_SUPABASE_ANON_KEY in .env.local.",
+    en: "Supabase is not configured. Add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY to .env.local.",
+  },
+  "pricing.saveError": {
+    it: "Errore nel salvataggio del listino.",
+    en: "Failed to save pricing settings.",
+  },
+  "pricing.loading": { it: "Caricamento listino…", en: "Loading pricing…" },
 
   // Home Page
   "home.badge": { it: "Brief di analisi preliminare", en: "Preliminary Analysis Brief" },
@@ -396,8 +413,8 @@ export const translations: Translations = {
   // Admin — pricing settings
   "pricing.title": { it: "Listino preventivi", en: "Quote price list" },
   "pricing.subtitle": {
-    it: "Prezzi indicativi per sezione (€). Salvati nel browser: servono al PDF «Preventivo professionale».",
-    en: "Indicative prices per section (€). Saved in this browser: used for the «Professional quote» PDF.",
+    it: "Prezzi indicativi per sezione (€). Salvati in Supabase: condivisi da tutto il team per il PDF «Preventivo professionale».",
+    en: "Indicative prices per section (€). Saved in Supabase: shared across the team for the «Professional quote» PDF.",
   },
   "pricing.cardTitle": { it: "Tariffe servizi", en: "Service rates" },
   "pricing.cardDesc": {
@@ -528,7 +545,21 @@ interface LanguageContextType {
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined)
 
 export function LanguageProvider({ children }: { children: ReactNode }) {
-  const [language, setLanguage] = useState<Language>("it")
+  const [language, setLanguageState] = useState<Language>("it")
+
+  useEffect(() => {
+    const stored = window.localStorage.getItem(LANGUAGE_STORAGE_KEY)
+    if (stored === "it" || stored === "en") setLanguageState(stored)
+  }, [])
+
+  useEffect(() => {
+    document.documentElement.lang = language
+  }, [language])
+
+  const setLanguage = (lang: Language) => {
+    setLanguageState(lang)
+    window.localStorage.setItem(LANGUAGE_STORAGE_KEY, lang)
+  }
 
   const t = (key: string): string => {
     const translation = translations[key]

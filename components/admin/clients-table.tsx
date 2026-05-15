@@ -37,17 +37,18 @@ import {
 import { format } from "date-fns"
 import { it, enUS } from "date-fns/locale"
 import { generateClientPDF } from "@/lib/pdf-generator"
-import { loadServicePricing, loadServiceLineBilling, loadServicePricingActive } from "@/lib/service-pricing"
 import { createClient } from "@/lib/supabase/client"
 import { toast } from "sonner"
 import { ClientDetailModal } from "./client-detail-modal"
 import { useLanguage } from "@/lib/language-context"
+import { useListino } from "@/lib/listino-context"
 
 interface ClientsTableProps {
   initialClients: Client[]
 }
 
 export function ClientsTable({ initialClients }: ClientsTableProps) {
+  const { pricing, lineBilling, pricingActive } = useListino()
   const { t, language } = useLanguage()
   const [clients, setClients] = useState<Client[]>(initialClients)
   const [searchQuery, setSearchQuery] = useState("")
@@ -283,9 +284,9 @@ export function ClientsTable({ initialClients }: ClientsTableProps) {
                           onClick={() =>
                             generateClientPDF(client, {
                               mode: "proposal",
-                              pricing: loadServicePricing(),
-                              lineBilling: loadServiceLineBilling(),
-                              pricingActive: loadServicePricingActive(),
+                              pricing,
+                              lineBilling,
+                              pricingActive,
                             })
                           }
                         >
@@ -427,9 +428,9 @@ export function ClientsTable({ initialClients }: ClientsTableProps) {
                               onClick={() =>
                                 generateClientPDF(client, {
                                   mode: "proposal",
-                                  pricing: loadServicePricing(),
-                                  lineBilling: loadServiceLineBilling(),
-                                  pricingActive: loadServicePricingActive(),
+                                  pricing,
+                                  lineBilling,
+                                  pricingActive,
                                 })
                               }
                             >
