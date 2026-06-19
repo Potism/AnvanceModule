@@ -12,6 +12,8 @@
  * longer collected through the UI.
  */
 
+import type { ClientQuoteConfig } from "@/lib/quote-packages"
+
 export type ClientStatus =
   | "new"
   | "contacted"
@@ -111,6 +113,10 @@ export interface Client {
   timeline: string | null
   /** Impegno sui canoni mensili nel preventivo (1 = solo mese corrente). */
   retainer_contract_months?: RetainerContractMonths | null
+  /** @deprecated Use quote_config (package or custom total). */
+  quote_prices?: import("@/lib/service-pricing").ClientQuotePrices | null
+  /** Package or custom total quote — snapshotted at submit. */
+  quote_config?: ClientQuoteConfig | null
   target_audience: string | null
   competitors: string | null
 

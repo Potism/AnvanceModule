@@ -1,4 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
+import type { ListinoPackage } from "@/lib/quote-packages"
+import { normalizePackages } from "@/lib/quote-packages"
 import {
   DEFAULT_SERVICE_PRICING,
   DEFAULT_SERVICE_LINE_BILLING,
@@ -17,6 +19,7 @@ export interface ListinoBundle {
   pricing: ServicePricing
   lineBilling: ServiceLineBilling
   pricingActive: ServicePricingActive
+  packages: ListinoPackage[]
 }
 
 export function defaultListinoBundle(): ListinoBundle {
@@ -24,6 +27,7 @@ export function defaultListinoBundle(): ListinoBundle {
     pricing: { ...DEFAULT_SERVICE_PRICING },
     lineBilling: { ...DEFAULT_SERVICE_LINE_BILLING },
     pricingActive: { ...DEFAULT_SERVICE_PRICING_ACTIVE },
+    packages: [],
   }
 }
 
@@ -31,6 +35,7 @@ function mergeListinoRow(row: {
   pricing?: unknown
   line_billing?: unknown
   pricing_active?: unknown
+  packages?: unknown
 } | null): ListinoBundle {
   const defaults = defaultListinoBundle()
   if (!row) return defaults
@@ -53,13 +58,14 @@ function mergeListinoRow(row: {
         ? (row.pricing_active as Partial<ServicePricingActive>)
         : {}),
     },
+    packages: normalizePackages(row?.packages),
   }
 }
 
 export async function fetchListino(supabase: SupabaseClient): Promise<ListinoBundle> {
   const { data, error } = await supabase
     .from("app_settings")
-    .select("pricing, line_billing, pricing_active")
+    .select("pricing, line_billing, pricing_active, packages")
     .eq("id", LISTINO_SETTINGS_ID)
     .maybeSingle()
 
@@ -80,6 +86,7 @@ export async function saveListino(
     pricing: bundle.pricing,
     line_billing: bundle.lineBilling,
     pricing_active: bundle.pricingActive,
+    packages: bundle.packages,
     updated_at: new Date().toISOString(),
   })
 
@@ -97,7 +104,7 @@ export async function migrateListinoFromLocalStorage(
 ): Promise<ListinoBundle> {
   const { data } = await supabase
     .from("app_settings")
-    .select("pricing, line_billing, pricing_active")
+    .select("pricing, line_billing, pricing_active, packages")
     .eq("id", LISTINO_SETTINGS_ID)
     .maybeSingle()
 
@@ -129,6 +136,7 @@ export async function migrateListinoFromLocalStorage(
       pricing: { ...DEFAULT_SERVICE_PRICING, ...pricing },
       lineBilling: { ...DEFAULT_SERVICE_LINE_BILLING, ...lineBilling },
       pricingActive: { ...DEFAULT_SERVICE_PRICING_ACTIVE, ...pricingActive },
+      packages: [],
     }
 
     await saveListino(supabase, bundle)

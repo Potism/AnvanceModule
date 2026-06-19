@@ -69,7 +69,7 @@ export function ClientDetailModal({
   onClientUpdated,
 }: ClientDetailModalProps) {
   const { t, language } = useLanguage()
-  const { pricing, lineBilling, pricingActive } = useListino()
+  const { pricing, lineBilling, pricingActive, packages } = useListino()
   const [isEditing, setIsEditing] = useState(false)
   const [saving, setSaving] = useState(false)
   const [draft, setDraft] = useState({
@@ -280,6 +280,7 @@ export function ClientDetailModal({
                       pricing,
                       lineBilling,
                       pricingActive,
+                      packages,
                     })
                   }
                   className="gap-1.5"

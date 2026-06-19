@@ -48,7 +48,7 @@ interface ClientsTableProps {
 }
 
 export function ClientsTable({ initialClients }: ClientsTableProps) {
-  const { pricing, lineBilling, pricingActive } = useListino()
+  const { pricing, lineBilling, pricingActive, packages } = useListino()
   const { t, language } = useLanguage()
   const [clients, setClients] = useState<Client[]>(initialClients)
   const [searchQuery, setSearchQuery] = useState("")
@@ -287,6 +287,7 @@ export function ClientsTable({ initialClients }: ClientsTableProps) {
                               pricing,
                               lineBilling,
                               pricingActive,
+                              packages,
                             })
                           }
                         >
@@ -431,6 +432,7 @@ export function ClientsTable({ initialClients }: ClientsTableProps) {
                                   pricing,
                                   lineBilling,
                                   pricingActive,
+                              packages,
                                 })
                               }
                             >

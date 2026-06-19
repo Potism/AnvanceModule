@@ -5,6 +5,7 @@
  */
 
 import type { Client } from "@/lib/types"
+import { buildQuoteConfigLines } from "@/lib/quote-packages"
 
 export const PRICING_STORAGE_KEY = "anvance-service-pricing-v1"
 export const LINE_BILLING_STORAGE_KEY = "anvance-service-line-billing-v1"
@@ -93,6 +94,9 @@ export type ListinoTariffKey = Exclude<keyof ServicePricing, "vatPercent">
 
 export type ServicePricingActive = Record<ListinoTariffKey, boolean>
 
+/** Per-brief price overrides (listino keys → €). */
+export type ClientQuotePrices = Partial<Record<ListinoTariffKey, number>>
+
 export const DEFAULT_SERVICE_PRICING_ACTIVE: ServicePricingActive = {
   website_custom: true,
   website_wordpress: true,
@@ -121,6 +125,8 @@ export interface PreventivoLine {
   unitPrice: number
   total: number
   billing: PreventivoBilling
+  /** Riga descrittiva senza importo (es. dettaglio servizi nel pacchetto). */
+  informational?: boolean
 }
 
 export interface PreventivoBuildContext {
@@ -130,6 +136,8 @@ export interface PreventivoBuildContext {
   contractMonths: number
   /** Tariffe disattivate non compaiono nel PDF preventivo. Omesso = tutte attive. */
   pricingActive?: Partial<ServicePricingActive>
+  /** Pacchetti listino — per risolvere package_id in anteprima PDF. */
+  packages?: import("@/lib/quote-packages").ListinoPackage[]
 }
 
 function clampMoney(n: number): number {
@@ -254,7 +262,11 @@ function sourceKeyMonthlyOrOnce(
  * al listino, alla modalità una tantum/mensile (settings) e ai mesi di impegno.
  */
 export function buildPreventivoLines(client: Client, ctx: PreventivoBuildContext): PreventivoLine[] {
-  const { pricing, lineBilling, contractMonths, pricingActive: pa } = ctx
+  const fromQuote = buildQuoteConfigLines(client, undefined, ctx.packages)
+  if (fromQuote) return fromQuote
+
+  const { lineBilling, contractMonths, pricingActive: pa } = ctx
+  const pricing = { ...ctx.pricing, ...(client.quote_prices ?? {}) }
   const months = Math.max(1, Math.min(12, contractMonths))
   const lines: PreventivoLine[] = []
   const pt = projectTypeList(client)
@@ -531,15 +543,23 @@ export function buildPreventivoLines(client: Client, ctx: PreventivoBuildContext
 }
 
 export function sumLines(lines: PreventivoLine[]): number {
-  return clampMoney(lines.reduce((s, l) => s + l.total, 0))
+  return clampMoney(lines.filter((l) => !l.informational).reduce((s, l) => s + l.total, 0))
 }
 
 export function monthlySubtotal(lines: PreventivoLine[]): number {
-  return clampMoney(lines.filter((l) => l.billing === "monthly").reduce((s, l) => s + l.total, 0))
+  return clampMoney(
+    lines
+      .filter((l) => !l.informational && l.billing === "monthly")
+      .reduce((s, l) => s + l.total, 0),
+  )
 }
 
 export function oneTimeSubtotal(lines: PreventivoLine[]): number {
-  return clampMoney(lines.filter((l) => l.billing === "once").reduce((s, l) => s + l.total, 0))
+  return clampMoney(
+    lines
+      .filter((l) => !l.informational && l.billing === "once")
+      .reduce((s, l) => s + l.total, 0),
+  )
 }
 
 export function vatAmount(subtotal: number, vatPercent: number): number {

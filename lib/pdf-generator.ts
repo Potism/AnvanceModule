@@ -23,6 +23,7 @@ import {
   type ServiceLineBilling,
   type ServicePricingActive,
 } from "./service-pricing"
+import type { ListinoPackage } from "./quote-packages"
 
 /* ------------------------------------------------------------------ */
 /*  Brand palette                                                     */
@@ -54,6 +55,8 @@ export interface ClientPDFOptions {
   lineBilling?: ServiceLineBilling
   /** Tariffe disattivate non compaiono nel preventivo. Omesso = tutte attive. */
   pricingActive?: Partial<ServicePricingActive>
+  /** Pacchetti listino per preventivi a pacchetto. */
+  packages?: ListinoPackage[]
   /** Giorni di validità testo in calce */
   proposalValidityDays?: number
 }
@@ -461,6 +464,7 @@ function drawPricingBlock(
   pricing: ServicePricing,
   lineBilling: ServiceLineBilling,
   pricingActive: Partial<ServicePricingActive> | undefined,
+  packages: ListinoPackage[] | undefined,
   startY: number,
 ): number {
   const contractMonths = normalizeContractMonths(client.retainer_contract_months)
@@ -469,6 +473,7 @@ function drawPricingBlock(
     lineBilling,
     contractMonths,
     pricingActive,
+    packages,
   })
   const subtotal = sumLines(lines)
   const vat = vatAmount(subtotal, pricing.vatPercent)
@@ -500,10 +505,14 @@ function drawPricingBlock(
 
   const body: RowInput[] = lines.map((l) => [
     l.description,
-    l.billing === "monthly" ? "Canone mensile" : "Una tantum",
-    String(l.qty),
-    fmtEuro(l.unitPrice),
-    fmtEuro(l.total),
+    l.informational
+      ? "Incluso"
+      : l.billing === "monthly"
+        ? "Canone mensile"
+        : "Una tantum",
+    l.informational ? "—" : String(l.qty),
+    l.informational ? "Incluso" : fmtEuro(l.unitPrice),
+    l.informational ? "—" : fmtEuro(l.total),
   ])
 
   autoTable(doc, {
@@ -816,6 +825,7 @@ export function buildClientPDF(
   const pricing = options?.pricing ?? DEFAULT_SERVICE_PRICING
   const lineBilling = options?.lineBilling ?? DEFAULT_SERVICE_LINE_BILLING
   const pricingActive = options?.pricingActive
+  const packages = options?.packages
   const validityDays = options?.proposalValidityDays ?? 30
 
   const doc = new jsPDF({ unit: "mm", format: "a4" })
@@ -840,7 +850,7 @@ export function buildClientPDF(
   if (mode === "proposal") {
     y = ensureSpace(doc, y, 55)
     y = sectionTitle(doc, "Indicativo economico", y, true)
-    y = drawPricingBlock(doc, client, pricing, lineBilling, pricingActive, y)
+    y = drawPricingBlock(doc, client, pricing, lineBilling, pricingActive, packages, y)
   }
 
   drawFooter(doc, mode, validityDays)

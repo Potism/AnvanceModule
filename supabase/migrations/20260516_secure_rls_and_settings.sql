@@ -55,8 +55,11 @@ create policy "Authenticated can update settings"
   using (true)
   with check (true);
 
-insert into public.app_settings (id, pricing, line_billing, pricing_active)
-values ('listino', '{}'::jsonb, '{}'::jsonb, '{}'::jsonb)
+alter table public.app_settings
+  add column if not exists packages jsonb not null default '[]'::jsonb;
+
+insert into public.app_settings (id, pricing, line_billing, pricing_active, packages)
+values ('listino', '{}'::jsonb, '{}'::jsonb, '{}'::jsonb, '[]'::jsonb)
 on conflict (id) do nothing;
 
 notify pgrst, 'reload schema';

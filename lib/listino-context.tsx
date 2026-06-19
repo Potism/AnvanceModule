@@ -18,11 +18,13 @@ import {
   type ListinoBundle,
 } from "@/lib/listino-settings"
 import type { ServiceLineBilling, ServicePricing, ServicePricingActive } from "@/lib/service-pricing"
+import type { ListinoPackage } from "@/lib/quote-packages"
 
 interface ListinoContextValue {
   pricing: ServicePricing
   lineBilling: ServiceLineBilling
   pricingActive: ServicePricingActive
+  packages: ListinoPackage[]
   loading: boolean
   refresh: () => Promise<void>
   save: (bundle: ListinoBundle) => Promise<{ ok: boolean; error?: string }>
@@ -65,6 +67,7 @@ export function ListinoProvider({ children }: { children: ReactNode }) {
       pricing: bundle.pricing,
       lineBilling: bundle.lineBilling,
       pricingActive: bundle.pricingActive,
+      packages: bundle.packages,
       loading,
       refresh,
       save,

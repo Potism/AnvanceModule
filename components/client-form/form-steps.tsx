@@ -44,6 +44,21 @@ import {
   Target,
 } from "lucide-react"
 import { useLanguage } from "@/lib/language-context"
+import { useListino } from "@/lib/listino-context"
+import Link from "next/link"
+import {
+  activePackages,
+  DEFAULT_QUOTE_CONFIG,
+  PACKAGE_SERVICE_LABEL_KEYS,
+  packageMissingForBrief,
+  snapshotFromPackage,
+  syncIncludedServices,
+  wantedServicesFromBrief,
+  type ClientQuoteConfig,
+  type PackageServiceKey,
+} from "@/lib/quote-packages"
+import { Euro } from "lucide-react"
+import { useEffect } from "react"
 
 interface StepProps {
   form: UseFormReturn<ClientFormData>
@@ -920,9 +935,78 @@ function FormatCheckRow({
 /* ================================================================== */
 
 export function FinalStep({ form }: StepProps) {
-  const { register, watch, setValue } = form
+  const { register, watch, setValue, getValues } = form
   const { t } = useLanguage()
+  const { packages, loading: listinoLoading, refresh: refreshListino } = useListino()
   const pains = watch("pain_points") || []
+
+  const briefWants = {
+    wants_website: watch("wants_website"),
+    wants_new_logo: watch("wants_new_logo"),
+    wants_social_management: watch("wants_social_management"),
+    wants_short_videos: watch("wants_short_videos"),
+    wants_long_videos: watch("wants_long_videos"),
+    wants_cinematic_videos: watch("wants_cinematic_videos"),
+    wants_photography: watch("wants_photography"),
+    wants_graphic_design: watch("wants_graphic_design"),
+    wants_ads_management: watch("wants_ads_management"),
+  }
+
+  const wanted = wantedServicesFromBrief(briefWants)
+  const quoteConfig = (watch("quote_config") ?? DEFAULT_QUOTE_CONFIG) as ClientQuoteConfig
+  const selectablePackages = activePackages(packages)
+
+  useEffect(() => {
+    void refreshListino()
+  }, [refreshListino])
+
+  useEffect(() => {
+    if (listinoLoading) return
+    const current = (getValues("quote_config") ?? DEFAULT_QUOTE_CONFIG) as ClientQuoteConfig
+    const synced = syncIncludedServices(briefWants, current.included_services)
+    if (JSON.stringify(synced) !== JSON.stringify(current.included_services ?? [])) {
+      setValue("quote_config", { ...current, included_services: synced }, { shouldDirty: false })
+    }
+  }, [
+    listinoLoading,
+    setValue,
+    getValues,
+    briefWants.wants_website,
+    briefWants.wants_new_logo,
+    briefWants.wants_social_management,
+    briefWants.wants_short_videos,
+    briefWants.wants_long_videos,
+    briefWants.wants_cinematic_videos,
+    briefWants.wants_photography,
+    briefWants.wants_graphic_design,
+    briefWants.wants_ads_management,
+  ])
+
+  const setQuoteConfig = (patch: Partial<ClientQuoteConfig>) => {
+    setValue("quote_config", { ...quoteConfig, ...patch })
+  }
+
+  const toggleIncludedService = (key: PackageServiceKey) => {
+    const current = quoteConfig.included_services ?? []
+    const next = current.includes(key)
+      ? current.filter((s) => s !== key)
+      : [...current, key]
+    setQuoteConfig({ included_services: next, mode: "custom", package_id: null, package_snapshot: null })
+  }
+
+  const selectPackage = (packageId: string) => {
+    const pkg = packages.find((p) => p.id === packageId)
+    if (!pkg) return
+    const snap = snapshotFromPackage(pkg)
+    setQuoteConfig({
+      mode: "package",
+      package_id: pkg.id,
+      package_snapshot: snap,
+      included_services: [...pkg.services],
+      total_price: pkg.totalPrice,
+      billing: pkg.billing,
+    })
+  }
 
   return (
     <div className="space-y-5 sm:space-y-6">
@@ -988,6 +1072,187 @@ export function FinalStep({ form }: StepProps) {
           className="bg-secondary border-border resize-none text-sm"
         />
       </div>
+
+      <section className="rounded-xl border border-border bg-secondary/40 p-4 space-y-4">
+        <div className="flex items-start gap-2.5">
+          <Euro className="h-4 w-4 mt-0.5 text-foreground" />
+          <div>
+            <h3 className="text-sm font-semibold text-foreground">{t("final.pricingTitle")}</h3>
+            <p className="text-[11px] sm:text-xs text-muted-foreground">{t("final.pricingSubtitle")}</p>
+          </div>
+        </div>
+
+        {wanted.length === 0 ? (
+          <p className="text-xs text-muted-foreground">{t("final.pricingEmpty")}</p>
+        ) : (
+          <>
+            <div className="space-y-2">
+              <FieldLabel>{t("final.servicesInQuote")}</FieldLabel>
+              <p className="text-[11px] text-muted-foreground -mt-1">{t("final.servicesInQuoteHint")}</p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {wanted.map((key) => {
+                  const included = (quoteConfig.included_services ?? []).includes(key)
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => toggleIncludedService(key)}
+                      className={`text-left text-xs px-2.5 py-2 rounded-md border transition-colors ${
+                        included
+                          ? "border-foreground bg-foreground/[0.06]"
+                          : "border-border bg-background opacity-50 line-through"
+                      }`}
+                    >
+                      {t(PACKAGE_SERVICE_LABEL_KEYS[key])}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            <div className="space-y-2 pt-2 border-t border-border/60">
+              <FieldLabel>{t("final.quoteMode")}</FieldLabel>
+              <div className="inline-flex rounded-lg border border-border bg-background overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setQuoteConfig({
+                      mode: "package",
+                      package_id: null,
+                      package_snapshot: null,
+                    })
+                  }
+                  className={`px-3 py-1.5 text-xs font-medium transition-colors ${
+                    quoteConfig.mode === "package"
+                      ? "bg-foreground text-background"
+                      : "text-muted-foreground hover:bg-secondary"
+                  }`}
+                >
+                  {t("final.modePackage")}
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setQuoteConfig({
+                      mode: "custom",
+                      package_id: null,
+                      package_snapshot: null,
+                    })
+                  }
+                  className={`px-3 py-1.5 text-xs font-medium border-l border-border transition-colors ${
+                    quoteConfig.mode === "custom"
+                      ? "bg-foreground text-background"
+                      : "text-muted-foreground hover:bg-secondary"
+                  }`}
+                >
+                  {t("final.modeCustom")}
+                </button>
+              </div>
+            </div>
+
+            {quoteConfig.mode === "package" ? (
+              <div className="space-y-2">
+                {listinoLoading ? (
+                  <p className="text-xs text-muted-foreground">{t("final.packagesLoading")}</p>
+                ) : selectablePackages.length === 0 ? (
+                  <div className="text-xs text-muted-foreground space-y-2">
+                    <p>{t("final.noPackages")}</p>
+                    <Link
+                      href="/admin/settings"
+                      className="text-foreground underline underline-offset-2 hover:opacity-80"
+                    >
+                      {t("final.goToListino")}
+                    </Link>
+                  </div>
+                ) : (
+                  <div className="grid gap-2">
+                    {selectablePackages.map((pkg) => {
+                      const selected = quoteConfig.package_id === pkg.id
+                      const missing = packageMissingForBrief(pkg, briefWants)
+                      return (
+                        <button
+                          key={pkg.id}
+                          type="button"
+                          onClick={() => selectPackage(pkg.id)}
+                          className={`w-full text-left p-3 rounded-lg border transition-colors ${
+                            selected
+                              ? "border-foreground bg-foreground/[0.05] ring-1 ring-foreground/10"
+                              : "border-border bg-background hover:bg-secondary"
+                          }`}
+                        >
+                          <div className="flex justify-between gap-2 items-start">
+                            <span className="text-sm font-medium">{pkg.name}</span>
+                            <span className="text-sm font-mono shrink-0">
+                              € {pkg.totalPrice.toLocaleString("it-IT")}
+                              {pkg.billing === "monthly" ? t("final.perMonth") : ""}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-muted-foreground mt-1">
+                            {pkg.services.map((s) => t(PACKAGE_SERVICE_LABEL_KEYS[s])).join(" · ")}
+                          </p>
+                          {missing.length > 0 && (
+                            <p className="text-[10px] text-amber-600 dark:text-amber-500 mt-1.5">
+                              {t("final.packageHint")}:{" "}
+                              {missing.map((s) => t(PACKAGE_SERVICE_LABEL_KEYS[s])).join(", ")}
+                            </p>
+                          )}
+                          {pkg.totalPrice <= 0 && (
+                            <p className="text-[10px] text-destructive mt-1">{t("final.packageNoPrice")}</p>
+                          )}
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+                <p className="text-[10px] text-muted-foreground">{t("final.packageFrozenHint")}</p>
+              </div>
+            ) : (
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                  <FieldLabel>{t("final.totalPrice")}</FieldLabel>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+                      €
+                    </span>
+                    <Input
+                      type="number"
+                      min={0}
+                      step={50}
+                      value={quoteConfig.total_price ?? ""}
+                      onChange={(e) =>
+                        setQuoteConfig({
+                          total_price: parseFloat(e.target.value) || 0,
+                          mode: "custom",
+                          package_id: null,
+                        })
+                      }
+                      className="bg-background border-border font-mono text-sm pl-7"
+                      placeholder="0"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <FieldLabel>{t("final.totalBilling")}</FieldLabel>
+                  <Select
+                    value={quoteConfig.billing ?? "once"}
+                    onValueChange={(v) =>
+                      setQuoteConfig({ billing: v as ClientQuoteConfig["billing"] })
+                    }
+                  >
+                    <SelectTrigger className="bg-background border-border h-9 text-sm">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="once">{t("pricing.billingOnce")}</SelectItem>
+                      <SelectItem value="monthly">{t("pricing.billingMonthly")}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </section>
 
       <div className="space-y-1.5 rounded-xl border border-border bg-secondary/40 p-4">
         <FieldLabel>{t("final.contractMonths")}</FieldLabel>

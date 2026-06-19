@@ -30,11 +30,12 @@ import { createClient } from "@/lib/supabase/client"
 import { useLanguage } from "@/lib/language-context"
 import { generateClientPDF } from "@/lib/pdf-generator"
 import { projectTypeFromWantsFields } from "@/lib/service-pricing"
+import { freezeQuoteConfigOnSubmit, DEFAULT_QUOTE_CONFIG } from "@/lib/quote-packages"
 import { useListino } from "@/lib/listino-context"
 
 export function ClientForm() {
   const { t } = useLanguage()
-  const { pricing, lineBilling, pricingActive } = useListino()
+  const { pricing, lineBilling, pricingActive, packages } = useListino()
   const [currentStep, setCurrentStep] = useState(0)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isSubmitted, setIsSubmitted] = useState(false)
@@ -98,6 +99,7 @@ export function ClientForm() {
       budget_range: "",
       timeline: "",
       retainer_contract_months: 1,
+      quote_config: { ...DEFAULT_QUOTE_CONFIG },
       target_audience: "",
       competitors: "",
     },
@@ -176,7 +178,11 @@ export function ClientForm() {
   const normalizePayload = (data: ClientFormData): Record<string, unknown> => {
     const out: Record<string, unknown> = {}
     for (const [key, value] of Object.entries(data)) {
-      if (typeof value === "string") {
+      if (key === "quote_config") {
+        out[key] = value && typeof value === "object" ? value : { ...DEFAULT_QUOTE_CONFIG }
+      } else if (key === "quote_prices") {
+        out[key] = value && typeof value === "object" ? value : {}
+      } else if (typeof value === "string") {
         out[key] = value.trim() === "" ? null : value.trim()
       } else {
         out[key] = value
@@ -192,10 +198,15 @@ export function ClientForm() {
       const supabase = createClient()
       const payload = normalizePayload(data)
       payload.project_type = projectTypeFromWantsFields(data)
+      const frozenQuote =
+        data.quote_config != null
+          ? freezeQuoteConfigOnSubmit(data.quote_config, packages)
+          : undefined
+      if (frozenQuote) payload.quote_config = frozenQuote
       const { error } = await supabase.from("clients").insert([payload])
       if (error) throw error
 
-      setSubmittedData(data)
+      setSubmittedData(frozenQuote ? { ...data, quote_config: frozenQuote } : data)
       setIsSubmitted(true)
       toast.success(t("success.toast"))
     } catch (error) {
@@ -259,7 +270,7 @@ export function ClientForm() {
                       ...submittedData,
                       project_type: projectTypeFromWantsFields(submittedData),
                     },
-                    { mode: "proposal", pricing, lineBilling, pricingActive },
+                    { mode: "proposal", pricing, lineBilling, pricingActive, packages },
                   )
                 }
                 className="gap-2 text-sm"

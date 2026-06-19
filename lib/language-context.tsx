@@ -333,6 +333,104 @@ export const translations: Translations = {
   "final.contract3": { it: "3 mesi", en: "3 months" },
   "final.contract6": { it: "6 mesi", en: "6 months" },
   "final.contract12": { it: "12 mesi (1 anno)", en: "12 months (1 year)" },
+  "final.pricingTitle": { it: "Prezzi servizi (preventivo)", en: "Service prices (quote)" },
+  "final.pricingSubtitle": {
+    it: "Scegli un pacchetto dal listino oppure inserisci un totale unico. Puoi escludere singoli servizi dal preventivo.",
+    en: "Pick a package from the price list or enter one total. You can exclude individual services from the quote.",
+  },
+  "final.pricingEmpty": {
+    it: "Nessun servizio selezionato. Torna al passo «Servizi» per scegliere cosa includere nel preventivo.",
+    en: "No services selected. Go back to the «Services» step to choose what to include in the quote.",
+  },
+  "final.servicesInQuote": { it: "Servizi nel preventivo", en: "Services in quote" },
+  "final.servicesInQuoteHint": {
+    it: "Clicca per includere o escludere (escludi ciò che non fa parte dell’offerta).",
+    en: "Click to include or exclude (turn off what is not part of the offer).",
+  },
+  "final.quoteMode": { it: "Modalità prezzo", en: "Pricing mode" },
+  "final.modePackage": { it: "Pacchetto", en: "Package" },
+  "final.modeCustom": { it: "Totale personalizzato", en: "Custom total" },
+  "final.noPackages": {
+    it: "Nessun pacchetto attivo nel listino. Crea almeno un pacchetto con servizi e prezzo totale, poi salva.",
+    en: "No active packages in the price list. Create at least one package with services and a total price, then save.",
+  },
+  "final.packagesLoading": { it: "Caricamento pacchetti…", en: "Loading packages…" },
+  "final.goToListino": { it: "Vai a Listino preventivi → Pacchetti", en: "Go to Quote price list → Packages" },
+  "final.packageHint": {
+    it: "Suggerimento: seleziona anche questi servizi nel passo Servizi",
+    en: "Tip: also select these services in the Services step",
+  },
+  "final.packageNoPrice": {
+    it: "Imposta un prezzo totale > 0 nel listino",
+    en: "Set a total price > 0 in the price list",
+  },
+  "final.totalPrice": { it: "Totale preventivo (€)", en: "Quote total (€)" },
+  "final.totalBilling": { it: "Tipo importo", en: "Amount type" },
+  "final.perMonth": { it: "/mese", en: "/mo" },
+  "final.packageFrozenHint": {
+    it: "Il prezzo del pacchetto viene salvato su questo brief al momento dell’invio — modifiche future al listino non lo cambiano.",
+    en: "Package price is saved on this brief at submit — future listino edits will not change it.",
+  },
+
+  // Packages (listino settings)
+  "pkg.cardTitle": { it: "Pacchetti", en: "Packages" },
+  "pkg.cardDesc": {
+    it: "Raggruppa servizi con un prezzo totale. I pacchetti compaiono nel brief finale per una scelta rapida.",
+    en: "Group services with one total price. Packages appear in the final brief step for quick selection.",
+  },
+  "pkg.empty": { it: "Nessun pacchetto. Aggiungine uno per semplificare il preventivo.", en: "No packages yet. Add one to simplify quoting." },
+  "pkg.add": { it: "Aggiungi pacchetto", en: "Add package" },
+  "pkg.newName": { it: "Nuovo pacchetto", en: "New package" },
+  "pkg.name": { it: "Nome pacchetto", en: "Package name" },
+  "pkg.total": { it: "Prezzo totale (€)", en: "Total price (€)" },
+  "pkg.billing": { it: "Tipo", en: "Type" },
+  "pkg.services": { it: "Servizi inclusi", en: "Included services" },
+  "pkg.active": { it: "Attivo nel brief finale", en: "Active in final brief" },
+  "pkg.svc.website": { it: "Sito web", en: "Website" },
+  "pkg.svc.logo": { it: "Logo & identità", en: "Logo & identity" },
+  "pkg.svc.social": { it: "Social management", en: "Social management" },
+  "pkg.svc.reels": { it: "Reels / short-form", en: "Reels / short-form" },
+  "pkg.svc.longform": { it: "YouTube / long-form", en: "YouTube / long-form" },
+  "pkg.svc.cinematic": { it: "Video cinematic", en: "Cinematic video" },
+  "pkg.svc.photo": { it: "Fotografia", en: "Photography" },
+  "pkg.svc.graphic": { it: "Graphic design", en: "Graphic design" },
+  "pkg.svc.ads": { it: "Ads & campagne", en: "Ads & campaigns" },
+  "pkg.pdf.website": {
+    it: "Progetto chiavi in mano: UX/UI, sviluppo responsive e messa online",
+    en: "Turnkey project: UX/UI, responsive development and go-live",
+  },
+  "pkg.pdf.logo": {
+    it: "Concept creativo, palette colori, tipografia e applicazioni base del marchio",
+    en: "Creative concept, colour palette, typography and core brand applications",
+  },
+  "pkg.pdf.social_management": {
+    it: "Piano editoriale, creazione contenuti, pubblicazione e monitoraggio canali",
+    en: "Editorial plan, content creation, publishing and channel monitoring",
+  },
+  "pkg.pdf.video_reels": {
+    it: "Script, ripresa, montaggio vertical e ottimizzazione per social e ads",
+    en: "Script, filming, vertical edit and optimisation for social and ads",
+  },
+  "pkg.pdf.video_longform": {
+    it: "Episodi e format estesi: pre-produzione, ripresa, editing e consegna",
+    en: "Episodes and long-form: pre-production, filming, editing and delivery",
+  },
+  "pkg.pdf.video_cinematic": {
+    it: "Produzione ad alta gamma, regia narrativa, color grading e sound design",
+    en: "High-end production, narrative direction, colour grading and sound design",
+  },
+  "pkg.pdf.photography": {
+    it: "Shooting prodotto, ambiente o ritratto per brand, web e campagne",
+    en: "Product, lifestyle or portrait shoots for brand, web and campaigns",
+  },
+  "pkg.pdf.graphic_design": {
+    it: "Materiali coordinati: social, print, presentazioni e supporti promozionali",
+    en: "Coordinated assets: social, print, decks and promotional materials",
+  },
+  "pkg.pdf.ads": {
+    it: "Strategia media, setup campagne, gestione budget e ottimizzazione performance",
+    en: "Media strategy, campaign setup, budget management and performance optimisation",
+  },
 
   "budget.under_500": { it: "Fino a € 500 / mese", en: "Up to € 500 / month" },
   "budget.500_1000": { it: "€ 500 – € 1.000 / mese", en: "€ 500 – € 1,000 / month" },
@@ -413,8 +511,13 @@ export const translations: Translations = {
   // Admin — pricing settings
   "pricing.title": { it: "Listino preventivi", en: "Quote price list" },
   "pricing.subtitle": {
-    it: "Prezzi indicativi per sezione (€). Salvati in Supabase: condivisi da tutto il team per il PDF «Preventivo professionale».",
-    en: "Indicative prices per section (€). Saved in Supabase: shared across the team for the «Professional quote» PDF.",
+    it: "Pacchetti con prezzo totale per il brief finale, più IVA applicata al PDF preventivo.",
+    en: "Packages with total price for the final brief step, plus VAT applied on the quote PDF.",
+  },
+  "pricing.vatCardTitle": { it: "IVA", en: "VAT" },
+  "pricing.vatCardDesc": {
+    it: "Aliquota IVA (%) applicata al totale imponibile nel PDF preventivo.",
+    en: "VAT rate (%) applied to the taxable total on the quote PDF.",
   },
   "pricing.cardTitle": { it: "Tariffe servizi", en: "Service rates" },
   "pricing.cardDesc": {
